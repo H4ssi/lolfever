@@ -1,0 +1,7 @@
+{
+        hypnotoad => {
+                listen => ['http://127.0.0.1:7070'],
+                proxy => 1,
+        },
+        base => '/lolfever',
+}
