@@ -341,17 +341,12 @@ __DATA__
 
 <p>
 Players:
-% for my $i (0..4) {
-    <select name="players">
-        <option value=""></option>
-%   for my $u (@$users) {
-        <option value="<%= $u %>"
-%       if( $u eq ($players->[$i] // '') ) {
-            selected="selected"
-%       }
-        ><%= $u %></option>
-%   }
-    </select>
+% for my $u (@$users) {
+    <input name="players" type="checkbox" value="<%= $u %>"
+%   if( $u ~~ @$players) {
+        checked="checked"         
+%   } 
+    /><%= $u %>&nbsp;
 % }
 </p>
 
