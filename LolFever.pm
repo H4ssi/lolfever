@@ -357,17 +357,12 @@ Players:
 
 <p>
 Without:
-% for my $i (0..3) {
-    <select name="woroles">
-        <option value=""></option>
-%   for my $r (@$roles) {
-        <option value="<%= $r %>"
-%       if( $r eq ($woroles->[$i] // '') ) {
-            selected="selected"
-%       }
-        ><%= $r %></option>
+% for my $r (@$roles) {
+    <input name="woroles" type="checkbox" value="<%= $r %>"
+%   if( $r ~~ @$woroles ) {
+        checked="checked"
 %   }
-    </select>
+    /><%= $r %>&nbsp;
 % }
 </p>
 
