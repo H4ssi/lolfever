@@ -93,7 +93,12 @@ get "$base/updatedb" => method {
         process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', m0 => '@data-meta', map { ( "m$_" => "\@data-meta$_" ) } (1..5) };
     };
 
+    my $free_rotation_scraper = scraper {
+        process 'li.game-champion-tag-free', 'champions[]' => { class => '@class' };
+    };
+
     my %db;
+    my %free;
     my @errors;
 
     my $champions = $champion_list_scraper->scrape( URI->new('http://www.lolking.net/champions') );
@@ -147,7 +152,23 @@ get "$base/updatedb" => method {
         }
     }
 
+    my $free_rotation = $free_rotation_scraper->scrape( URI->new('http://www.lolpro.com') );
+
+    for my $c ( @{ $free_rotation->{'champions'} } ) {
+        my @classes = split /\s+/xms, $c->{'class'};
+
+        my ($name_info) = grep { /\A game-champion-/xms && !/\A game-champion-tag-/xms } @classes;
+
+        if( $name_info =~ /\A game-champion-(.*) \z/xms ) {
+            (my $name = $1) =~ s/[^a-z]//xmsg;
+
+            $free{$name} = { free => 1 };
+            push @errors, "What is this for a champion: $name?" unless $db{$name};
+        }
+    }
+
     write_db('champions.db', \%db);
+    write_db('free.db', \%free);
 
     $self->render( text => Dumper({ errors => \@errors, db => {%db} }) );
 };
@@ -225,7 +246,7 @@ post "$base/user/:name" => method {
 };
 
 get "$base/roll" => method {
-    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll/xms } (glob '*.db'));
+    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free/xms } (glob '*.db'));
 
     my @roles = qw<top mid adcarry support jungle>;
 
@@ -233,7 +254,7 @@ get "$base/roll" => method {
 
     my @champions = keys( %$db );
 
-    return $self->render( 'roll', users => \@users, roles => \@roles, champions => \@champions );
+    return $self->render( 'roll', users => \@users, roles => \@roles, champions => \@champions, players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef );
 };
 
 func select_random(@values) {
@@ -245,7 +266,7 @@ func select_random(@values) {
     return @values[$ran, @other];
 }
 
-func all_options( $db, $user, $tabu_roles, $tabu_champions ) {
+func all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
     return 
     map {
             my $champion = $_;
@@ -253,7 +274,7 @@ func all_options( $db, $user, $tabu_roles, $tabu_champions ) {
                     my $role = $_;
                     { champion => $champion, role => $role };
                 } (grep { $user->{'can'}->{$_} && !( $_ ~~ @$tabu_roles ) } (keys %{ $db->{$champion} }) );
-        } (grep { $user->{'owns'}->{$_} && !( $_ ~~ @$tabu_champions ) } (keys %{ $db }) );
+        } (grep { ( $user->{'owns'}->{$_} || $_ ~~ @$free ) && !( $_ ~~ @$tabu_champions ) } (keys %{ $db }) );
                 
 }
 
@@ -265,7 +286,8 @@ post "$base/roll" => method {
     my %player_specs = map { ( $_ => read_db("$_.db") ) } @players;
 
     my $db = read_db('champions.db');
-    
+    my @free = keys read_db('free.db');
+
     my @fails;
 
     my $TRIES = 42;
@@ -278,7 +300,7 @@ post "$base/roll" => method {
         while( scalar @u ) {
             (my $user, @u) = select_random(@u);
 
-            my @options = all_options($db, $player_specs{$user}, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
+            my @options = all_options($db, $player_specs{$user}, \@free, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
             
             unless( scalar @options ) {
                 push @fails, { $user => { %roll } };
@@ -291,7 +313,7 @@ post "$base/roll" => method {
         last if( ( scalar ( keys %roll ) ) == ( scalar @players ) );
     }
 
-    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll/xms } (glob '*.db'));
+    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free/xms } (glob '*.db'));
 
     my @roles = qw<top mid adcarry support jungle>;
 
