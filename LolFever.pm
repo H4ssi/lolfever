@@ -224,9 +224,156 @@ post "$base/user/:name" => method {
     return $self->redirect_to;
 };
 
+get "$base/roll" => method {
+    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll/xms } (glob '*.db'));
+
+    my @roles = qw<top mid adcarry support jungle>;
+
+    my $db = read_db('champions.db');
+
+    my @champions = keys( %$db );
+
+    return $self->render( 'roll', users => \@users, roles => \@roles, champions => \@champions );
+};
+
+func select_random(@values) {
+    my $len = scalar  @values;
+    my $ran = int(rand($len));
+
+    my @other = grep { $_ != $ran } (0..$len-1);
+
+    return @values[$ran, @other];
+}
+
+func all_options( $db, $user, $tabu_roles, $tabu_champions ) {
+    return 
+    map {
+            my $champion = $_;
+            map {
+                    my $role = $_;
+                    { champion => $champion, role => $role };
+                } (grep { $user->{'can'}->{$_} && !( $_ ~~ @$tabu_roles ) } (keys %{ $db->{$champion} }) );
+        } (grep { $user->{'owns'}->{$_} && !( $_ ~~ @$tabu_champions ) } (keys %{ $db }) );
+                
+}
+
+post "$base/roll" => method {
+    my @players = grep { $_ } $self->param('players');
+    my @woroles = grep { $_ } $self->param('woroles');
+    my @wochampions = grep { $_ } $self->param('wochampions');
+    
+    my %player_specs = map { ( $_ => read_db("$_.db") ) } @players;
+
+    my $db = read_db('champions.db');
+    
+    my @fails;
+
+    my $TRIES = 42;
+
+    my %roll;
+    for (1..$TRIES) {
+        undef %roll;
+        my @u = @players;
+
+        while( scalar @u ) {
+            (my $user, @u) = select_random(@u);
+
+            my @options = all_options($db, $player_specs{$user}, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
+            
+            unless( scalar @options ) {
+                push @fails, { $user => { %roll } };
+                last;
+            }
+
+            $roll{$user} = $options[ int(rand(scalar @options)) ];
+        }
+
+        last if( ( scalar ( keys %roll ) ) == ( scalar @players ) );
+    }
+
+    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll/xms } (glob '*.db'));
+
+    my @roles = qw<top mid adcarry support jungle>;
+
+    my @champions = keys( %$db );
+
+    return $self->render( 'roll', users => \@users, roles => \@roles, champions => \@champions, players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
+                           roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef) );
+    
+};
+
 app->start;
 
 __DATA__
+
+@@ roll.html.ep
+<h1>Roll</h1>
+
+% if( defined $roll ) {
+%   while( my ($player, $pick) = each %$roll ) {
+    <p><b><%= $player %></b>: <%= $pick->{'champion'} %>(<%= $pick->{'role'} %>)</p>
+%   }
+% }
+
+%= form_for url_for() => (method => 'POST') => begin
+
+<p>
+Players:
+% for my $i (0..4) {
+    <select name="players">
+        <option value=""></option>
+%   for my $u (@$users) {
+        <option value="<%= $u %>"
+%       if( $u eq ($players->[$i] // '') ) {
+            selected="selected"
+%       }
+        ><%= $u %></option>
+%   }
+    </select>
+% }
+</p>
+
+<p>
+Without:
+% for my $i (0..3) {
+    <select name="woroles">
+        <option value=""></option>
+%   for my $r (@$roles) {
+        <option value="<%= $r %>"
+%       if( $r eq ($woroles->[$i] // '') ) {
+            selected="selected"
+%       }
+        ><%= $r %></option>
+%   }
+    </select>
+% }
+</p>
+
+<p>
+Without:
+% for my $i (0..3) {
+    <select name="wochampions">
+        <option value=""></option>
+%   for my $c (@$champions) {
+        <option value="<%= $c %>"
+%       if( $c eq ($wochampions->[$i] // '') ) {
+            selected="selected"
+%       }
+        ><%= $c %></option>
+%   }
+    </select>
+% }
+</p>
+
+%= submit_button 'Roll'
+
+% if( defined $fails ) {
+<pre>
+%= $fails
+</pre>
+% }
+
+% end
 
 @@ user.html.ep
 <h1><%= $user %></h1>
