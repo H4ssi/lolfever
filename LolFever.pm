@@ -81,7 +81,7 @@ func read_db( $file ) {
 }
 
 
-get "$base/updatedb" => method {
+get("$base/updatedb" => method {
     my $champion_list_scraper = scraper {
         process '.champion-list tr', 'champions[]' => scraper {
             process '.champion-list-icon > a', href => '@href';
@@ -171,9 +171,9 @@ get "$base/updatedb" => method {
     write_db('free.db', \%free);
 
     $self->render( text => Dumper({ errors => \@errors, db => {%db} }) );
-};
+})->name('update_db');
 
-get "$base/user/:name" => method {
+get("$base/user/:name" => method {
     my $name = $self->param('name');
     unless( defined $name && $name =~ /\w/xms && -f "$name.db" ) {
         return $self->render( text => "No such user: $name" );
@@ -184,7 +184,7 @@ get "$base/user/:name" => method {
     my @names = sort ( keys %$champions );
 
     $self->render($self->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, owns => $data->{'owns'}, can => $data->{'can'}, pw => !!$data->{'pwhash'});
-};
+})->name('user');
 
 post "$base/user/:name" => method {
     my $name = $self->param('name');
@@ -245,7 +245,7 @@ post "$base/user/:name" => method {
     return $self->redirect_to;
 };
 
-get "$base/roll" => method {
+get "$base" => method {
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free/xms } (glob '*.db'));
 
     my @roles = qw<top mid adcarry support jungle>;
@@ -278,7 +278,11 @@ func all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
                 
 }
 
-post "$base/roll" => method {
+get "$base/roll" => method {
+    return $self->redirect_to('base');
+};
+
+post("$base" => method {
     my @players = grep { $_ } $self->param('players');
     my @woroles = grep { $_ } $self->param('woroles');
     my @wochampions = grep { $_ } $self->param('wochampions');
@@ -322,7 +326,7 @@ post "$base/roll" => method {
     return $self->render( 'roll', users => \@users, roles => \@roles, champions => \@champions, players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
                            roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef) );
     
-};
+})->name('base');
 
 app->start;
 
@@ -346,7 +350,9 @@ Players:
 %   if( $u ~~ @$players) {
         checked="checked"         
 %   } 
-    /><%= $u %>&nbsp;
+    />
+%= link_to $u => 'user' => { name => $u }
+    &nbsp;
 % }
 </p>
 
@@ -377,8 +383,13 @@ Without:
 % }
 </p>
 
+<p>
 %= submit_button 'Roll'
-
+</p>
+<p>
+%= link_to 'Update champion database' => 'update_db'
+(You need to do this once per free champion rotation)
+</p>
 % if( defined $fails ) {
 <pre>
 %= $fails
