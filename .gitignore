@@ -2,3 +2,4 @@
 *.db
 hypnotoad.pid
 LolFever.conf
+/bootstrap

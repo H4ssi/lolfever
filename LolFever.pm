@@ -31,21 +31,15 @@ my $config = plugin 'Config';
 my $base = $config->{'base'} // '';
 
 app->secret('asdfp421c4 1r_');
+app->defaults( layout => 'layout' );
 
 func parse_role($role) {
-    if( $role =~ /mid/xmsi ) {
-        return 'mid';     
-    } elsif ( $role =~ /top/xmsi ) {
-        return 'top';
-    } elsif ( $role =~ /supp/xmsi ) {
-        return 'support';
-    } elsif ( $role =~ /ad|bot/xmsi ) {
-        return 'adcarry';
-    } elsif ( $role =~ /jungl/xmsi ) {
-        return 'jungle';
-    } else {
-        return;
-    }
+    return 'mid'     if $role =~ /mid/xmsi;
+    return 'top'     if $role =~ /top/xmsi;
+    return 'support' if $role =~ /supp/xmsi;
+    return 'adcarry' if $role =~ /ad|bot/xmsi;
+    return 'jungle'  if $role =~ /jungl/xmsi;
+    return;
 }
 
 func write_db( $file, $data ) {
@@ -170,7 +164,7 @@ get("$base/updatedb" => method {
     write_db('champions.db', \%db);
     write_db('free.db', \%free);
 
-    $self->render( text => Dumper({ errors => \@errors, db => {%db} }) );
+    $self->render( 'updatedb', errors => ( @errors ? \@errors : undef ), db => {%db}, free => {%free} );
 })->name('update_db');
 
 get("$base/user/:name" => method {
@@ -254,7 +248,7 @@ get "$base" => method {
 
     my @champions = keys( %$db );
 
-    return $self->render( 'roll', users => \@users, roles => \@roles, champions => \@champions, players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef );
+    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @roles ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef );
 };
 
 func select_random(@values) {
@@ -323,7 +317,7 @@ post("$base" => method {
 
     my @champions = keys( %$db );
 
-    return $self->render( 'roll', users => \@users, roles => \@roles, champions => \@champions, players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
+    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @roles ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
                            roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef) );
     
 })->name('base');
@@ -332,60 +326,109 @@ app->start;
 
 __DATA__
 
+@@ layouts/layout.html.ep
+<html>
+<!--
+  - LoLfever - random meta ftw
+  - Copyright (C) 2013  Florian Hassanen
+  - 
+  - This file is part of LoLfever.
+  -
+  - LoLfever is free software: you can redistribute it and/or modify
+  - it under the terms of the GNU Affero General Public License as
+  - published by the Free Software Foundation, either version 3 of the
+  - License, or (at your option) any later version.
+  - 
+  - This program is distributed in the hope that it will be useful,
+  - but WITHOUT ANY WARRANTY; without even the implied warranty of
+  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  - GNU Affero General Public License for more details.
+  - 
+  - You should have received a copy of the GNU Affero General Public License
+  - along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+<head>
+<title>LoL Fever</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="<%= $config->{'base'} %>/css/bootstrap.min.css" rel="stylesheet" media="screen">
+</head>
+<body>
+<div class="container">
+<%= content %>
+<div style="margin-top: 40px" class="text-center"><small>This is free software. Get the <a href="https://github.com/H4ssi/lolfever">source</a>!</small></div>
+</div>
+<script src="<%= $config->{'base'} %>/js/bootstrap.min.js"></script>
+</body>
+</html>
+
 @@ roll.html.ep
 <h1>Roll</h1>
 
 % if( defined $roll ) {
+    <dl class="well dl-horizontal">
 %   while( my ($player, $pick) = each %$roll ) {
-    <p><b><%= $player %></b>: <%= $pick->{'champion'} %>(<%= $pick->{'role'} %>)</p>
+    <dt><%= $player %></dt><dd><%= $pick->{'champion'} %> (<%= $pick->{'role'} %>)</dd>
 %   }
+    </dl>
 % }
 
-%= form_for url_for() => (method => 'POST') => begin
+%= form_for url_for() => (method => 'POST', class => 'form-horizontal') => begin
 
-<p>
-Players:
-% for my $u (@$users) {
-    <input name="players" type="checkbox" value="<%= $u %>"
-%   if( $u ~~ @$players) {
-        checked="checked"         
-%   } 
-    />
-%= link_to $u => 'user' => { name => $u }
-    &nbsp;
-% }
-</p>
-
-<p>
-Without:
-% for my $r (@$roles) {
-    <input name="woroles" type="checkbox" value="<%= $r %>"
-%   if( $r ~~ @$woroles ) {
-        checked="checked"
+<div class="control-group">
+    <label class="control-label">
+    Players
+    </label>
+    <div class="controls">
+%   for my $u (@$users) {
+        <label class="checkbox">
+%=      input_tag "players", type => 'checkbox', value => $u, $u ~~ @$players ? ( checked => 'checked' ) : ()
+%=      link_to $u => 'user' => { name => $u }
+        </label>
 %   }
-    /><%= $r %>&nbsp;
-% }
-</p>
+    </div>
+</div>
 
-<p>
-Without:
-% for my $i (0..3) {
-    <select name="wochampions">
-        <option value=""></option>
-%   for my $c (@$champions) {
-        <option value="<%= $c %>"
-%       if( $c eq ($wochampions->[$i] // '') ) {
-            selected="selected"
+<div class="control-group">
+    <label class="control-label">
+    Excluded roles
+    </label>
+    <div class="controls">
+%   for my $r (@$roles) {
+        <label class="checkbox">
+%=      input_tag "woroles", type => 'checkbox', value => $r, $r ~~ @$woroles ? ( checked => 'checked' ) : ()
+%=      $r
+        </label>
+%   }
+    </div>
+</div>
+
+<div class="control-group">
+    <label class="control-label">
+    Excluded champions
+    </label>
+    <div class="controls">
+%   for my $i (0..3) {
+        <select name="wochampions">
+            <option value=""></option>
+%       for my $c (@$champions) {
+            <option value="<%= $c %>"
+%           if( $c eq ($wochampions->[$i] // '') ) {
+                selected="selected"
+%           }
+            ><%= $c %></option>
 %       }
-        ><%= $c %></option>
+        </select><br/>
 %   }
-    </select>
-% }
-</p>
+    </div>
+</div>
 
-<p>
-%= submit_button 'Roll'
-</p>
+<div class="control-group">
+    <div class="controls">
+    <button type="submit" class="btn">Roll</button>
+    </div>
+</div>
+% end
+
 <p>
 %= link_to 'Update champion database' => 'update_db'
 (You need to do this once per free champion rotation)
@@ -396,12 +439,11 @@ Without:
 </pre>
 % }
 
-% end
 
 @@ user.html.ep
 <h1><%= $user %></h1>
 <h2>Possible roles</h2>
-<ul>
+<ul class="inline">
 % for my $c (qw<top mid adcarry support jungle>) {
 %   if( $can->{$c} ) {
         <li><%= $c %></li>
@@ -409,7 +451,7 @@ Without:
 % }
 </ul>
 <h2>Owned champions</h2>
-<ul>
+<ul class="inline">
 % for my $n (@$names) {
 %   if( $owns->{$n} ) {
         <li><%= $n %></li>
@@ -417,41 +459,77 @@ Without:
 % }
 </ul>
 %= link_to Edit => url_for->query(edit => 1)
-<div style="margin-top: 40px" class="text-center"><small>This is free software. Get the <a href="https://github.com/H4ssi/lolfever">source</a>!<small></div>
 
 @@ user_edit.html.ep
 <h1><%= $user %></h1>
 %= form_for url_for() => (method => 'POST') => begin
-<h2>Possible roles</h2>
+<fieldset>
+<legend>
+Possible roles
+</legend>
 % for my $c (qw<top mid adcarry support jungle>) {
-    <div>
+    <label class="checkbox">
 %= input_tag "can:$c", type => 'checkbox', value => 1, $can->{$c} ? ( checked => 'checked' ) : ()
     <%= $c %>
-    </div>
+    </label>
 % }
-<h2>Owned champions</h2>
+<br/>
+<legend>
+Owned champions
+</legend>
 % for my $n (@$names) {
-    <div>
+    <label class="checkbox">
 %= input_tag "owns:$n", type => 'checkbox', value => 1, $owns->{$n} ? ( checked => 'checked' ) : ()
     <%= $n %>
-    </div>
+    </label>
 % }
-<h2>Authentication</h2>
-Current password <strong>(required)</strong>: 
-%= input_tag 'current_pw', type => 'password'
-<br />
+<br/>
+<legend>
+Authentication
+</legend>
+<label for="current_pw">
+Current password <strong>(required)</strong>
+</label>
+%= input_tag 'current_pw' => ( type => 'password', id => 'current_pw' )
+<label for="new_pw_1">
 New password 
 % if( !$pw ) {
-    <strong>(Password change required!)</strong>:
+    <strong>(Password change required!)</strong>
 % } else {
-    (Leave empty if you do not want to change your password):
+    (Leave empty if you do not want to change your password)
 % }
-%= input_tag 'new_pw_1', type => 'password'
-<br />
-Retype new password:
-%= input_tag 'new_pw_2', type => 'password'
-<br />
-%= submit_button 'Save'
-%
-%end
-<div style="margin-top: 40px" class="text-center"><small>This is free software. Get the <a href="https://github.com/H4ssi/lolfever">source</a>!<small></div>
+</label>
+%= input_tag 'new_pw_1' => ( type => 'password', id => 'new_pw_1' )
+<label for="new_pw_2">
+Retype new password
+</label>
+%= input_tag 'new_pw_2' => ( type => 'password', id => 'new_pw_2' )
+<br>
+<button type="submit" class="btn">Save</button>
+</fieldset>
+% end
+
+@@ updatedb.html.ep
+<h1>Update Champion DB</h1>
+% if( defined $errors ) {
+    <div class="alert alert-error">
+%       for my $e (@$errors ) {
+            <p>$e</p>
+%       }
+    </div>
+% } else {
+    <div class="alert alert-success">
+        Champion DB was updated without errors!
+    </div>
+% }
+<dl class="dl-horizontal">
+% for my $c (sort keys %$db) {
+    <dt><%= $c %></dt>
+    <dd>
+%   if( $free->{$c} ) {
+        <span class="label label-important">free</span>
+%   }
+%=  join ', ', sort keys %{ $db->{$c} }
+    </dd>
+% }
+</dl>

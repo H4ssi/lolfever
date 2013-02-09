@@ -1,0 +1,7 @@
+# ignore all unecessary files, so we can insert links for deployments under a sub path
+# eg create a link "lolfever -> ." to serve under /lolfever
+*
+!/.gitignore
+!/css
+!/img
+!/js
