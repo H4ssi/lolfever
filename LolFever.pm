@@ -75,7 +75,7 @@ func read_db( $file ) {
 }
 
 
-get("$base/updatedb" => method {
+post("$base/championdb" => method {
     my $champion_list_scraper = scraper {
         process '.champion-list tr', 'champions[]' => scraper {
             process '.champion-list-icon > a', href => '@href';
@@ -163,9 +163,16 @@ get("$base/updatedb" => method {
 
     write_db('champions.db', \%db);
     write_db('free.db', \%free);
+    
+    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => {%db}, free => {%free}, updated => 1 );
+})->name('championdb');
 
-    $self->render( 'updatedb', errors => ( @errors ? \@errors : undef ), db => {%db}, free => {%free} );
-})->name('update_db');
+get "$base/championdb" => method {
+    my $db = read_db('champions.db');
+    my $free = read_db('free.db');
+
+    $self->render( 'championdb', errors => undef, db => $db, free => $free, updated => 0 );
+};
 
 get("$base/user/:name" => method {
     my $name = $self->param('name');
@@ -430,8 +437,7 @@ __DATA__
 % end
 
 <p>
-%= link_to 'Update champion database' => 'update_db'
-(You need to do this once per free champion rotation)
+%= link_to 'All champions' => 'championdb'
 </p>
 % if( defined $fails ) {
 <pre>
@@ -509,15 +515,20 @@ Retype new password
 </fieldset>
 % end
 
-@@ updatedb.html.ep
-<h1>Update Champion DB</h1>
+@@ championdb.html.ep
+<h1>Champion DB</h1>
+%= form_for url_for() => (method => 'POST') => begin
+<button type="submit" class="btn">Update DB from the Interwebs</button>
+(You need to do this once per free champion rotation)
+% end
 % if( defined $errors ) {
     <div class="alert alert-error">
 %       for my $e (@$errors ) {
-            <p>$e</p>
+            <p><%= $e %></p>
 %       }
     </div>
-% } else {
+% }
+% if( $updated ) {
     <div class="alert alert-success">
         Champion DB was updated without errors!
     </div>
