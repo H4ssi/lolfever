@@ -18,6 +18,8 @@ package LolFever;
 
 use Modern::Perl;
 
+use threads;
+
 use Mojolicious::Lite;
 use Method::Signatures::Simple;
 
@@ -76,26 +78,40 @@ func read_db( $file ) {
 
 
 post("$base/championdb" => method {
-    my $champion_list_scraper = scraper {
-        process '.champion-list tr', 'champions[]' => scraper {
-            process '.champion-list-icon > a', href => '@href';
-            process '//td[last()-1]', role => '@data-sortval';
+
+
+    my $champion_list_thread = threads->create( sub {
+        my $champion_list_scraper = scraper {
+            process '.champion-list tr', 'champions[]' => scraper {
+                # this custom process is used to prevent auto cast to URI
+                # since this cannot be shared accross threads, its easier
+                # to just take a string of the @href attribute
+                process '.champion-list-icon > a', href => sub { return shift->attr('href'); };
+                process '//td[last()-1]', role => '@data-sortval';
+            };
         };
-    };
+        return $champion_list_scraper->scrape( URI->new('http://www.lolking.net/champions') ); 
+    });
 
-    my $champion_guide_scraper = scraper {
-        process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', m0 => '@data-meta', map { ( "m$_" => "\@data-meta$_" ) } (1..5) };
-    };
+    my $champion_guide_thread = threads->create( sub {
+        my $champion_guide_scraper = scraper {
+            process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', m0 => '@data-meta', map { ( "m$_" => "\@data-meta$_" ) } (1..5) };
+        };
+        return $champion_guide_scraper->scrape( URI->new('http://www.lolking.net/guides') );
+    });
 
-    my $free_rotation_scraper = scraper {
-        process 'li.game-champion-tag-free', 'champions[]' => { class => '@class' };
-    };
+    my $free_rotation_thread = threads->create( sub {
+        my $free_rotation_scraper = scraper {
+            process 'li.game-champion-tag-free', 'champions[]' => { class => '@class' };
+        };
+        return $free_rotation_scraper->scrape( URI->new('http://www.lolpro.com') );
+    });
 
     my %db;
     my %free;
     my @errors;
-
-    my $champions = $champion_list_scraper->scrape( URI->new('http://www.lolking.net/champions') );
+    
+    my $champions = $champion_list_thread->join();
 
     for my $c ( @{ $champions->{'champions'} } ) {
         if( defined $c->{'href'} ) {
@@ -124,13 +140,13 @@ post("$base/championdb" => method {
         
     }
 
-    my $champion_guides = $champion_guide_scraper->scrape( URI->new('http://www.lolking.net/guides') );
+    my $champion_guides = $champion_guide_thread->join();
 
     for my $c ( @{ $champion_guides->{'champions'} } ) {
         my @roles = grep { defined && /\w/xms } @$c{ qw<m0 m1 m2 m3 m4 m5> };
 
         (my $name = $c->{'name'}) =~ s/[^a-zA-Z]//xmsg;
-
+ 
         unless( defined $db{$name} ) {
             push @errors, "No such champion: $name/".($c->{'name'});
         } else {
@@ -146,7 +162,7 @@ post("$base/championdb" => method {
         }
     }
 
-    my $free_rotation = $free_rotation_scraper->scrape( URI->new('http://www.lolpro.com') );
+    my $free_rotation = $free_rotation_thread->join();
 
     for my $c ( @{ $free_rotation->{'champions'} } ) {
         my @classes = split /\s+/xms, $c->{'class'};
@@ -521,17 +537,18 @@ Retype new password
 <button type="submit" class="btn">Update DB from the Interwebs</button>
 (You need to do this once per free champion rotation)
 % end
-% if( defined $errors ) {
-    <div class="alert alert-error">
+% if( $updated ) {
+%   if( defined $errors ) {
+        <div class="alert alert-error">
 %       for my $e (@$errors ) {
             <p><%= $e %></p>
 %       }
-    </div>
-% }
-% if( $updated ) {
+        </div>
+%   } else {
     <div class="alert alert-success">
         Champion DB was updated without errors!
     </div>
+%   }
 % }
 <dl class="dl-horizontal">
 % for my $c (sort keys %$db) {
