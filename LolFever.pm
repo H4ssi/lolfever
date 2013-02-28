@@ -35,20 +35,26 @@ my $base = $config->{'base'} // '';
 app->secret('asdfp421c4 1r_');
 app->defaults( layout => 'layout' );
 
-func parse_role($role) {
-    return 'mid'     if $role =~ /mid/xmsi;
-    return 'top'     if $role =~ /top/xmsi;
-    return 'support' if $role =~ /supp/xmsi;
-    return 'adcarry' if $role =~ /ad|bot/xmsi;
-    return 'jungle'  if $role =~ /jungl/xmsi;
+my %PARSE = ( mid => 'mid', 
+              top => 'top',
+              support => 'sup',
+              adcarry => 'ad|bot',
+              jungle => 'jun', );
+
+my @ROLES = keys %PARSE;
+
+func parse_role( $role_string ) {
+    for my $role (@ROLES) {
+        return $role if $role_string =~ /$PARSE{$role}/xmsi;
+    }
     return;
 }
 
 func write_db( $file, $data ) {
     open(my $f, '>', $file);
 
-    while( my ($key, $values) = each %$data ) {
-        for my $value ( keys %$values ) {
+    for my $key ( sort keys %$data ) {
+        for my $value ( sort keys %{ $data->{$key} } ) {
             say {$f} "$key:$value" if $data->{$key}->{$value};
         }
     }
@@ -95,7 +101,7 @@ post("$base/championdb" => method {
 
     my $champion_guide_thread = threads->create( sub {
         my $champion_guide_scraper = scraper {
-            process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', m0 => '@data-meta', map { ( "m$_" => "\@data-meta$_" ) } (1..5) };
+            process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', meta0 => '@data-meta', map { ( "meta$_" => "\@data-meta$_" ) } (1..5) };
         };
         return $champion_guide_scraper->scrape( URI->new('http://www.lolking.net/guides') );
     });
@@ -107,8 +113,8 @@ post("$base/championdb" => method {
         return $free_rotation_scraper->scrape( URI->new('http://www.lolpro.com') );
     });
 
-    my %db;
-    my %free;
+    my $db;
+    my $free;
     my @errors;
     
     my $champions = $champion_list_thread->join();
@@ -121,18 +127,15 @@ post("$base/championdb" => method {
                 my $name = $1;
                 $name = 'wukong' if $name eq 'monkeyking';
 
-                my %roles;
-                $db{$name} = \%roles;
-
-                unless( defined $c->{'role'} ) {
+                unless( $c->{'role'} ) {
                     push @errors, "No role found for champion $name";
                 } else {
                     my $r = parse_role($c->{'role'});
                     
                     unless( defined $r ) {
-                        push @errors, "Do not know what role this is: ".($c->{'role'});
+                        push @errors, "Do not know what role this is: '".($c->{'role'})."' (champion is '$name')";
                     } else {
-                        $roles{$r} = 1;
+                        $db->{$name}->{$r} = 1;
                     }
                 }
             }
@@ -143,20 +146,19 @@ post("$base/championdb" => method {
     my $champion_guides = $champion_guide_thread->join();
 
     for my $c ( @{ $champion_guides->{'champions'} } ) {
-        my @roles = grep { defined && /\w/xms } @$c{ qw<m0 m1 m2 m3 m4 m5> };
-
+        my @roles = grep { defined && /\w/xms } @$c{ grep { / \A meta/xms } keys %$c };
         (my $name = $c->{'name'}) =~ s/[^a-zA-Z]//xmsg;
  
-        unless( defined $db{$name} ) {
+        unless( exists $db->{$name} ) {
             push @errors, "No such champion: $name/".($c->{'name'});
         } else {
             for my $role (@roles) {
                 my $r = parse_role($role);
 
-                unless( defined $r ) {
-                    push @errors, "Do not know what role this is again: $role";
+                unless( $r ) {
+                    push @errors, "Do not know what role this is again: '$role' (champion is '$name')";
                 } else {
-                    $db{$name}->{$r} = 1;
+                    $db->{$name}->{$r} = 1;
                 }
             }
         }
@@ -172,15 +174,18 @@ post("$base/championdb" => method {
         if( $name_info =~ /\A game-champion-(.*) \z/xms ) {
             (my $name = $1) =~ s/[^a-z]//xmsg;
 
-            $free{$name} = { free => 1 };
-            push @errors, "What is this for a champion: $name?" unless $db{$name};
+            unless( exists $db->{$name} ) {
+                push @errors, "What is this for a champion: $name?";
+            } else {
+                $free->{$name}->{'free'} = 1;
+            }
         }
     }
 
-    write_db('champions.db', \%db);
-    write_db('free.db', \%free);
+    write_db('champions.db', $db);
+    write_db('free.db', $free);
     
-    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => {%db}, free => {%free}, updated => 1 );
+    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, updated => 1 );
 })->name('championdb');
 
 get "$base/championdb" => method {
@@ -200,7 +205,7 @@ get("$base/user/:name" => method {
     my $champions = read_db('champions.db');
     my @names = sort ( keys %$champions );
 
-    $self->render($self->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, owns => $data->{'owns'}, can => $data->{'can'}, pw => !!$data->{'pwhash'});
+    $self->render($self->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw => !!$data->{'pwhash'});
 })->name('user');
 
 post "$base/user/:name" => method {
@@ -232,8 +237,6 @@ post "$base/user/:name" => method {
 
     my $given = $d->clone->add( $self->param('current_pw') )->b64digest;
   
-    say Dumper( { auth => $auth, given => $given });
-
     unless( $auth eq $given ) {
         return $self->render( text => "invalid pw" );
     }
@@ -248,7 +251,7 @@ post "$base/user/:name" => method {
     }
 
     $data->{'can'} = {} unless defined $data->{'can'};
-    for my $role (qw<top mid adcarry support jungle>) {
+    for my $role (@ROLES) {
         $data->{'can'}->{$role} = !!$self->param("can:$role");
     }
 
@@ -265,13 +268,11 @@ post "$base/user/:name" => method {
 get "$base" => method {
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free/xms } (glob '*.db'));
 
-    my @roles = qw<top mid adcarry support jungle>;
-
     my $db = read_db('champions.db');
 
     my @champions = keys( %$db );
 
-    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @roles ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef );
+    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef );
 };
 
 func select_random(@values) {
@@ -336,11 +337,9 @@ post("$base" => method {
 
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free/xms } (glob '*.db'));
 
-    my @roles = qw<top mid adcarry support jungle>;
-
     my @champions = keys( %$db );
 
-    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @roles ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
+    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
                            roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef) );
     
 })->name('base');
@@ -389,8 +388,8 @@ __DATA__
 
 % if( defined $roll ) {
     <dl class="well dl-horizontal">
-%   while( my ($player, $pick) = each %$roll ) {
-    <dt><%= $player %></dt><dd><%= $pick->{'champion'} %> (<%= $pick->{'role'} %>)</dd>
+%   for my $player ( sort keys %$roll ) {
+    <dt><%= $player %></dt><dd><%= $roll->{$player}->{'champion'} %> (<%= $roll->{$player}->{'role'} %>)</dd>
 %   }
     </dl>
 % }
@@ -466,7 +465,7 @@ __DATA__
 <h1><%= $user %></h1>
 <h2>Possible roles</h2>
 <ul class="inline">
-% for my $c (qw<top mid adcarry support jungle>) {
+% for my $c (@$roles) {
 %   if( $can->{$c} ) {
         <li><%= $c %></li>
 %   }
@@ -489,7 +488,7 @@ __DATA__
 <legend>
 Possible roles
 </legend>
-% for my $c (qw<top mid adcarry support jungle>) {
+% for my $c (@$roles) {
     <label class="checkbox">
 %= input_tag "can:$c", type => 'checkbox', value => 1, $can->{$c} ? ( checked => 'checked' ) : ()
     <%= $c %>
