@@ -304,14 +304,14 @@ func select_random(@values) {
     return @values[$ran, @other];
 }
 
-func all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
+func all_options( $db, $user, $free, $blacklist, $tabu_roles, $tabu_champions ) {
     return 
     map {
             my $champion = $_;
             map {
                     my $role = $_;
                     { champion => $champion, role => $role };
-                } (grep { $user->{'can'}->{$_} && !( $_ ~~ @$tabu_roles ) } (keys %{ $db->{$champion} }) );
+                } (grep { $user->{'can'}->{$_} && !( $_ ~~ @$tabu_roles ) && !( $blacklist->{$champion}->{$_} ) } (keys %{ $db->{$champion} }) );
         } (grep { ( $user->{'owns'}->{$_} || $_ ~~ @$free ) && !( $_ ~~ @$tabu_champions ) } (keys %{ $db }) );
                 
 }
@@ -328,7 +328,8 @@ post("$base" => method {
     my %player_specs = map { ( $_ => read_db("$_.db") ) } @players;
 
     my $db = read_db('champions.db');
-    my @free = keys read_db('free.db');
+    my @free = keys %{ read_db('free.db') };
+    my $blacklist = read_db('blacklist.db');
 
     my @fails;
 
@@ -342,7 +343,7 @@ post("$base" => method {
         while( scalar @u ) {
             (my $user, @u) = select_random(@u);
 
-            my @options = all_options($db, $player_specs{$user}, \@free, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
+            my @options = all_options($db, $player_specs{$user}, \@free, $blacklist, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
             
             unless( scalar @options ) {
                 push @fails, { $user => { %roll } };
