@@ -82,10 +82,7 @@ func read_db( $file ) {
     return \%data;
 }
 
-
 post("$base/championdb" => method {
-
-
     my $champion_list_thread = threads->create( sub {
         my $champion_list_scraper = scraper {
             process '.champion-list tr', 'champions[]' => scraper {
@@ -184,15 +181,38 @@ post("$base/championdb" => method {
 
     write_db('champions.db', $db);
     write_db('free.db', $free);
+
+    my $blacklist = read_db('blacklist.db');
     
-    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, updated => 1 );
+    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => $blacklist, updated => 1 );
 })->name('championdb');
+
+func manage_blacklist( $champion, $role, $listed ) {
+    my $blacklist = read_db('blacklist.db');
+
+    $blacklist->{ $champion }->{ $role } = $listed;
+
+    write_db('blacklist.db', $blacklist);
+}
+
+get( "$base/champion/:champion/:role/troll" => method {
+    manage_blacklist( $self->param('champion'), $self->param('role'), 1 );
+    
+    $self->redirect_to('championdb');
+})->name('troll');
+
+get( "$base/champion/:champion/:role/legit" => method {
+    manage_blacklist( $self->param('champion'), $self->param('role'), 0 );
+    
+    $self->redirect_to('championdb');
+})->name('legit');
 
 get "$base/championdb" => method {
     my $db = read_db('champions.db');
     my $free = read_db('free.db');
+    my $blacklist = read_db('blacklist.db');
 
-    $self->render( 'championdb', errors => undef, db => $db, free => $free, updated => 0 );
+    $self->render( 'championdb', errors => undef, db => $db, free => $free, blacklist => $blacklist, updated => 0 );
 };
 
 get("$base/user/:name" => method {
@@ -266,7 +286,7 @@ post "$base/user/:name" => method {
 };
 
 get "$base" => method {
-    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free/xms } (glob '*.db'));
+    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist/xms } (glob '*.db'));
 
     my $db = read_db('champions.db');
 
@@ -335,7 +355,7 @@ post("$base" => method {
         last if( ( scalar ( keys %roll ) ) == ( scalar @players ) );
     }
 
-    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free/xms } (glob '*.db'));
+    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist/xms } (glob '*.db'));
 
     my @champions = keys( %$db );
 
@@ -552,11 +572,23 @@ Retype new password
 <dl class="dl-horizontal">
 % for my $c (sort keys %$db) {
     <dt><%= $c %></dt>
-    <dd>
+    <dd><!--
 %   if( $free->{$c} ) {
-        <span class="label label-important">free</span>
+        --><span class="label label-important">free</span> <!--
 %   }
-%=  join ', ', sort keys %{ $db->{$c} }
-    </dd>
+%   my $count = 0;
+%   for my $r ( sort keys %{ $db->{$c} } ) {
+%       if( $count++ != 0 ) { 
+            --> <!--
+%       }
+--><%=  link_to $blacklist->{$c}->{$r} ? 'legit' : 'troll' => { champion => $c, role => $r } => begin %><!--
+%           if( $blacklist->{$c}->{$r} ) {
+                --><s><%= $r %></s><!--
+%           } else {
+                --><%= $r %><!--
+%           }
+--><%=  end %><!--
+%   }
+    --></dd>
 % }
 </dl>
