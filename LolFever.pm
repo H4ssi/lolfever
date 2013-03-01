@@ -285,7 +285,7 @@ post "$base/user/:name" => method {
     return $self->redirect_to;
 };
 
-get "$base" => method {
+method roll_form {
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist/xms } (glob '*.db'));
 
     my $db = read_db('champions.db');
@@ -294,6 +294,9 @@ get "$base" => method {
 
     return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef );
 };
+
+get "$base" => \&roll_form;
+get "$base/troll" => \&roll_form;
 
 func select_random(@values) {
     my $len = scalar  @values;
@@ -316,11 +319,22 @@ func all_options( $db, $user, $free, $blacklist, $tabu_roles, $tabu_champions ) 
                 
 }
 
-get "$base/roll" => method {
-    return $self->redirect_to('base');
-};
+func trollify( $db ) {
+    my $troll_db;
 
-post("$base" => method {
+    for my $champ ( keys %$db ) {
+        my @roles = keys %{ $db->{$champ} };
+        push @roles, 'adcarry', 'support' if 'adcarry' ~~ @roles || 'support' ~~ @roles; # combine bot lane :)
+
+        for my $troll_role ( grep { !( $_ ~~ @roles ) } @ROLES ) {
+            $troll_db->{$champ}->{$troll_role} = 1;
+        }
+    }
+
+    return $troll_db;
+}
+
+method roll( $trolling ) {
     my @players = grep { $_ } $self->param('players');
     my @woroles = grep { $_ } $self->param('woroles');
     my @wochampions = grep { $_ } $self->param('wochampions');
@@ -331,6 +345,8 @@ post("$base" => method {
     my @free = keys %{ read_db('free.db') };
     my $blacklist = read_db('blacklist.db');
 
+    $db = trollify( $db ) if $trolling;
+    
     my @fails;
 
     my $TRIES = 42;
@@ -362,8 +378,20 @@ post("$base" => method {
 
     return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
                            roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef) );
-    
+
+}
+
+get "$base/roll" => method {
+    return $self->redirect_to('base');
+};
+
+post("$base" => method {
+    return roll($self); # you cannot call the method directly, use function notation instead
 })->name('base');
+
+post("$base/troll" => method {
+    return roll($self, 'trolling');
+})->name('trollroll');
 
 app->start;
 
