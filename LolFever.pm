@@ -105,7 +105,7 @@ post("$base/championdb" => method {
 
     my $free_rotation_thread = threads->create( sub {
         my $free_rotation_scraper = scraper {
-            process 'li.game-champion-tag-free', 'champions[]' => { class => '@class' };
+            process 'li.game-champion', 'champions[]' => { class => '@class' };
         };
         return $free_rotation_scraper->scrape( URI->new('http://www.lolpro.com') );
     });
@@ -174,7 +174,12 @@ post("$base/championdb" => method {
             unless( exists $db->{$name} ) {
                 push @errors, "What is this for a champion: $name?";
             } else {
-                $free->{$name}->{'free'} = 1;
+                $free->{$name}->{'free'}  = 1 if 'game-champion-tag-free'     ~~ @classes;
+                $db->{$name}->{'top'}     = 1 if 'game-champion-tag-top-lane' ~~ @classes;
+                $db->{$name}->{'mid'}     = 1 if 'game-champion-tag-mid-lane' ~~ @classes;
+                $db->{$name}->{'adcarry'} = 1 if 'game-champion-tag-bot-lane' ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
+                $db->{$name}->{'support'} = 1 if 'game-champion-tag-support'  ~~ @classes;
+                $db->{$name}->{'jungle'}  = 1 if 'game-champion-tag-jungler'  ~~ @classes;
             }
         }
     }
