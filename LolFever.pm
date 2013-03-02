@@ -312,16 +312,30 @@ func select_random(@values) {
     return @values[$ran, @other];
 }
 
-func all_options( $db, $user, $free, $blacklist, $tabu_roles, $tabu_champions ) {
-    return 
-    map {
-            my $champion = $_;
+func all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
+    return map {
+        my $champion = $_;
+        if ( ( $user->{'owns'}->{$champion} || $champion ~~ @$free ) && !( $champion ~~ @$tabu_champions ) ) {
             map {
-                    my $role = $_;
+                my $role = $_;
+                if ( $user->{'can'}->{$role} && !( $role ~~ @$tabu_roles ) ) {
                     { champion => $champion, role => $role };
-                } (grep { $user->{'can'}->{$_} && !( $_ ~~ @$tabu_roles ) && !( $blacklist->{$champion}->{$_} ) } (keys %{ $db->{$champion} }) );
-        } (grep { ( $user->{'owns'}->{$_} || $_ ~~ @$free ) && !( $_ ~~ @$tabu_champions ) } (keys %{ $db }) );
-                
+                } else { (); }
+            } keys %{ $db->{$champion} };
+        } else { (); }
+    } keys %$db;
+}
+
+func combine_blacklist( $db, $blacklist ) {
+    return { map { 
+        my $champ = $_;
+        ( $champ => { map {
+            my $role = $_;
+            if ( $db->{$champ}->{$role} && !$blacklist->{$champ}->{$role} ) {
+                ( $role => 1 );
+            } else { (); } 
+        } keys %{ $db->{$champ} } } );
+    } keys %$db };
 }
 
 func trollify( $db ) {
@@ -350,6 +364,7 @@ method roll( $trolling ) {
     my @free = keys %{ read_db('free.db') };
     my $blacklist = read_db('blacklist.db');
 
+    $db = combine_blacklist( $db, $blacklist );
     $db = trollify( $db ) if $trolling;
     
     my @fails;
@@ -364,7 +379,7 @@ method roll( $trolling ) {
         while( scalar @u ) {
             (my $user, @u) = select_random(@u);
 
-            my @options = all_options($db, $player_specs{$user}, \@free, $blacklist, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
+            my @options = all_options($db, $player_specs{$user}, \@free, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
             
             unless( scalar @options ) {
                 push @fails, { $user => { %roll } };
@@ -383,7 +398,6 @@ method roll( $trolling ) {
 
     return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
                            roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef) );
-
 }
 
 get "$base/roll" => method {
