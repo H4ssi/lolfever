@@ -189,7 +189,7 @@ post("$base/championdb" => method {
 
     my $blacklist = read_db('blacklist.db');
     
-    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => $blacklist, updated => 1 );
+    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => $blacklist, updated => 1, mode => 'champions' );
 })->name('championdb');
 
 func manage_blacklist( $champion, $role, $listed ) {
@@ -217,7 +217,7 @@ get "$base/championdb" => method {
     my $free = read_db('free.db');
     my $blacklist = read_db('blacklist.db');
 
-    $self->render( 'championdb', errors => undef, db => $db, free => $free, blacklist => $blacklist, updated => 0 );
+    $self->render( 'championdb', errors => undef, db => $db, free => $free, blacklist => $blacklist, updated => 0, mode => 'champions' );
 };
 
 get("$base/user/:name" => method {
@@ -230,7 +230,7 @@ get("$base/user/:name" => method {
     my $champions = read_db('champions.db');
     my @names = sort ( keys %$champions );
 
-    $self->render($self->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw => !!$data->{'pwhash'});
+    $self->render($self->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw => !!$data->{'pwhash'}, mode => 'profile' );
 })->name('user');
 
 post "$base/user/:name" => method {
@@ -297,7 +297,7 @@ method roll_form {
 
     my @champions = keys( %$db );
 
-    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef );
+    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
 };
 
 get "$base" => \&roll_form;
@@ -397,7 +397,7 @@ method roll( $trolling ) {
     my @champions = keys( %$db );
 
     return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
-                           roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef) );
+                           roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef), mode => 'roll' );
 }
 
 get "$base/roll" => method {
@@ -444,6 +444,24 @@ __DATA__
 </head>
 <body>
 <div class="container">
+<div class="navbar">
+    <div class="navbar-inner">
+%=      link_to LoLfever => 'base', {}, class => 'brand'
+        <ul class="nav">
+            <li <% if( $mode eq 'roll'      ) { %> class="active" <% } %> >
+%=              link_to Roll => 'base'
+            </li>
+            <li <% if( $mode eq 'champions' ) { %> class="active" <% } %> >
+%=              link_to Champions => 'championdb'          
+            </li>
+            <% if( $mode eq 'profile' ) { %> 
+                <li class="active">
+%=                  link_to ( (stash 'user') . "'" . ( (stash 'user') =~ /s \z/xms ? '' : 's') . ' Profile')                
+                </li> 
+            <% } %>
+        </ul>
+    </div>
+</div>
 <%= content %>
 <div style="margin-top: 40px" class="text-center"><small>This is free software. Get the <a href="https://github.com/H4ssi/lolfever">source</a>!</small></div>
 </div>
@@ -452,7 +470,6 @@ __DATA__
 </html>
 
 @@ roll.html.ep
-<h1>Roll</h1>
 
 % if( defined $roll ) {
     <dl class="well dl-horizontal">
@@ -519,9 +536,6 @@ __DATA__
 </div>
 % end
 
-<p>
-%= link_to 'All champions' => 'championdb'
-</p>
 % if( defined $fails ) {
 <pre>
 %= $fails
@@ -530,7 +544,6 @@ __DATA__
 
 
 @@ user.html.ep
-<h1><%= $user %></h1>
 <h2>Possible roles</h2>
 <ul class="inline">
 % for my $c (@$roles) {
@@ -550,7 +563,6 @@ __DATA__
 %= link_to Edit => url_for->query(edit => 1)
 
 @@ user_edit.html.ep
-<h1><%= $user %></h1>
 %= form_for url_for() => (method => 'POST') => begin
 <fieldset>
 <legend>
@@ -599,7 +611,6 @@ Retype new password
 % end
 
 @@ championdb.html.ep
-<h1>Champion DB</h1>
 %= form_for url_for() => (method => 'POST') => begin
 <button type="submit" class="btn">Update DB from the Interwebs</button>
 (You need to do this once per free champion rotation)
