@@ -1,7 +1,9 @@
 # LoLfever - random meta ftw
 # Copyright (C) 2013  Florian Hassanen
 # 
-# This program is free software: you can redistribute it and/or modify
+# This file is part of LoLfever.
+#
+# LoLfever is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
 # published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
@@ -187,37 +189,54 @@ post("$base/championdb" => method {
     write_db('champions.db', $db);
     write_db('free.db', $free);
 
-    my $blacklist = read_db('blacklist.db');
-    
-    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => $blacklist, updated => 1, mode => 'champions' );
+    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
 })->name('championdb');
 
-func manage_blacklist( $champion, $role, $listed ) {
-    my $blacklist = read_db('blacklist.db');
+func manage_list( $file, $champion, $role, $listed ) {
+    my $list = read_db( $file );
 
-    $blacklist->{ $champion }->{ $role } = $listed;
+    $list->{ $champion }->{ $role } = $listed;
 
-    write_db('blacklist.db', $blacklist);
+    write_db( $file, $list );
 }
 
-get( "$base/champion/:champion/:role/troll" => method {
+func manage_blacklist( $champion, $role, $listed ) {
+    manage_list( 'blacklist.db', $champion, $role, $listed );
+}
+
+func manage_whitelist( $champion, $role, $listed ) {
+    manage_list( 'whitelist.db', $champion, $role, $listed );
+}
+
+get( "$base/champion/:champion/:role/blacklist" => method {
     manage_blacklist( $self->param('champion'), $self->param('role'), 1 );
     
     $self->redirect_to('championdb');
-})->name('troll');
+})->name('blacklist');
 
-get( "$base/champion/:champion/:role/legit" => method {
+get( "$base/champion/:champion/:role/no_blacklist" => method {
     manage_blacklist( $self->param('champion'), $self->param('role'), 0 );
     
     $self->redirect_to('championdb');
-})->name('legit');
+})->name('no_blacklist');
+
+get( "$base/champion/:champion/:role/whitelist" => method {
+    manage_whitelist( $self->param('champion'), $self->param('role'), 1 );
+    
+    $self->redirect_to('championdb');
+})->name('whitelist');
+
+get( "$base/champion/:champion/:role/no_whitelist" => method {
+    manage_whitelist( $self->param('champion'), $self->param('role'), 0 );
+    
+    $self->redirect_to('championdb');
+})->name('no_whitelist');
 
 get "$base/championdb" => method {
     my $db = read_db('champions.db');
     my $free = read_db('free.db');
-    my $blacklist = read_db('blacklist.db');
 
-    $self->render( 'championdb', errors => undef, db => $db, free => $free, blacklist => $blacklist, updated => 0, mode => 'champions' );
+    $self->render( 'championdb', errors => undef, db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
 };
 
 get("$base/user/:name" => method {
@@ -291,7 +310,7 @@ post "$base/user/:name" => method {
 };
 
 method roll_form {
-    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist/xms } (glob '*.db'));
+    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
     my $db = read_db('champions.db');
 
@@ -326,15 +345,15 @@ func all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
     } keys %$db;
 }
 
-func combine_blacklist( $db, $blacklist ) {
+func combine_blacklist_whitelist( $db, $blacklist, $whitelist ) {
     return { map { 
         my $champ = $_;
         ( $champ => { map {
             my $role = $_;
-            if ( $db->{$champ}->{$role} && !$blacklist->{$champ}->{$role} ) {
+            if ( ( $db->{$champ}->{$role} || $whitelist->{$champ}->{$role} ) && !$blacklist->{$champ}->{$role} ) {
                 ( $role => 1 );
             } else { (); } 
-        } keys %{ $db->{$champ} } } );
+        } @ROLES } );
     } keys %$db };
 }
 
@@ -362,9 +381,8 @@ method roll( $trolling ) {
 
     my $db = read_db('champions.db');
     my @free = keys %{ read_db('free.db') };
-    my $blacklist = read_db('blacklist.db');
 
-    $db = combine_blacklist( $db, $blacklist );
+    $db = combine_blacklist_whitelist( $db, read_db('blacklist.db'), read_db('whitelist.db') );
     $db = trollify( $db ) if $trolling;
     
     my @fails;
@@ -392,7 +410,7 @@ method roll( $trolling ) {
         last if( ( scalar ( keys %roll ) ) == ( scalar @players ) );
     }
 
-    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist/xms } (glob '*.db'));
+    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
     my @champions = keys( %$db );
 
@@ -441,6 +459,7 @@ __DATA__
 <title>LoL Fever</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link href="<%= $config->{'base'} %>/css/bootstrap.min.css" rel="stylesheet" media="screen">
+<link href="<%= $config->{'base'} %>/css/lolfever.css" rel="stylesheet" media="screen">
 </head>
 <body>
 <div class="container">
@@ -630,23 +649,34 @@ Retype new password
 % }
 <dl class="dl-horizontal">
 % for my $c (sort keys %$db) {
-    <dt><%= $c %></dt>
-    <dd><!--
+    <dt><!-- 
 %   if( $free->{$c} ) {
         --><span class="label label-important">free</span> <!--
 %   }
+    --> <%= $c %></dt>
+    <dd><!--
 %   my $count = 0;
-%   for my $r ( sort keys %{ $db->{$c} } ) {
+%   for my $r ( @$roles ) {
 %       if( $count++ != 0 ) { 
             --> <!--
 %       }
---><%=  link_to $blacklist->{$c}->{$r} ? 'legit' : 'troll' => { champion => $c, role => $r } => begin %><!--
-%           if( $blacklist->{$c}->{$r} ) {
-                --><s><%= $r %></s><!--
-%           } else {
-                --><%= $r %><!--
-%           }
---><%=  end %><!--
+%       if( $db->{$c}->{$r} ) {
+--><%=      link_to $blacklist->{$c}->{$r} ? 'no_blacklist' : 'blacklist' => { champion => $c, role => $r } => begin %><!--
+%               if( $blacklist->{$c}->{$r} ) {
+                    --><s><%= $r %></s><!--
+%               } else {
+                    --><%= $r %><!--
+%               }
+--><%=      end %><!--
+%       } else {
+--><%=      link_to $whitelist->{$c}->{$r} ? 'no_whitelist' : 'whitelist' => { champion => $c, role => $r } => begin %><!--
+%               if( $whitelist->{$c}->{$r} ) {
+                    --><u><%= $r %></u><!--
+%               } else {
+                    --><span class="non-role"><%= $r %></span><!--
+%               }
+--><%=      end %><!--
+%       }
 %   }
     --></dd>
 % }
