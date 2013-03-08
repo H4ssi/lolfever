@@ -475,7 +475,7 @@ __DATA__
             </li>
             <% if( $mode eq 'profile' ) { %> 
                 <li class="active">
-%=                  link_to ( (stash 'user') . "'" . ( (stash 'user') =~ /s \z/xms ? '' : 's') . ' Profile')                
+%=                  link_to ( (stash 'user') . "'" . ( (stash 'user') =~ /s \z/xms ? '' : 's') . ' profile')                
                 </li> 
             <% } %>
         </ul>
