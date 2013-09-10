@@ -1,5 +1,5 @@
 # LoLfever - random meta ftw
-# Copyright (C) 2013  Florian Hassanen
+# Copyright (C) 2013, 2015  Florian Hassanen
 # 
 # This file is part of LoLfever.
 #
@@ -20,10 +20,10 @@ package LolFever;
 
 use Modern::Perl;
 
-use threads;
-
 use Mojolicious::Lite;
 use Method::Signatures::Simple;
+
+use Mojo::Path;
 
 use URI;
 use Web::Scraper;
@@ -31,11 +31,24 @@ use Data::Dumper;
 
 use Digest;
 
+no warnings 'experimental::smartmatch';
+
 my $config = plugin 'Config';
 my $base = $config->{'base'} // '';
 
-app->secret('asdfp421c4 1r_');
+app->secrets(['HaShien233zyyY?', 'asdfp421c4 1r_']);
 app->defaults( layout => 'layout' );
+
+my @base_path = @{ Mojo::Path->new($base)->leading_slash(0) };
+app->hook(before_dispatch => sub {
+  my $c = shift;
+  
+  my @base = splice @{ $c->req->url->path->leading_slash(0) }, 0, scalar @base_path;
+
+  $c->rendered(404) unless @base ~~ @base_path;
+
+  push @{ $c->req->url->base->path->trailing_slash(1) }, @base;
+});
 
 my %PARSE = ( mid => 'mid', 
               top => 'top',
@@ -84,8 +97,8 @@ func read_db( $file ) {
     return \%data;
 }
 
-post("$base/championdb" => method {
-    my $champion_list_thread = threads->create( sub {
+post("/championdb" => method {
+    my $champion_list_thread = sub {
         my $champion_list_scraper = scraper {
             process '.champion-list tr', 'champions[]' => scraper {
                 # this custom process is used to prevent auto cast to URI
@@ -96,27 +109,27 @@ post("$base/championdb" => method {
             };
         };
         return $champion_list_scraper->scrape( URI->new('http://www.lolking.net/champions') ); 
-    });
+    };
 
-    my $champion_guide_thread = threads->create( sub {
+    my $champion_guide_thread = sub {
         my $champion_guide_scraper = scraper {
             process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', meta0 => '@data-meta', map { ( "meta$_" => "\@data-meta$_" ) } (1..5) };
         };
         return $champion_guide_scraper->scrape( URI->new('http://www.lolking.net/guides') );
-    });
+    };
 
-    my $free_rotation_thread = threads->create( sub {
+    my $free_rotation_thread = sub {
         my $free_rotation_scraper = scraper {
             process 'li.game-champion', 'champions[]' => { class => '@class' };
         };
         return $free_rotation_scraper->scrape( URI->new('http://www.lolpro.com') );
-    });
+    };
 
     my $db;
     my $free;
     my @errors;
     
-    my $champions = $champion_list_thread->join();
+    my $champions = $champion_list_thread->();
 
     for my $c ( @{ $champions->{'champions'} } ) {
         if( defined $c->{'href'} ) {
@@ -142,7 +155,7 @@ post("$base/championdb" => method {
         
     }
 
-    my $champion_guides = $champion_guide_thread->join();
+    my $champion_guides = $champion_guide_thread->();
 
     for my $c ( @{ $champion_guides->{'champions'} } ) {
         my @roles = grep { defined && /\w/xms } @$c{ grep { / \A meta/xms } keys %$c };
@@ -163,7 +176,7 @@ post("$base/championdb" => method {
         }
     }
 
-    my $free_rotation = $free_rotation_thread->join();
+    my $free_rotation = $free_rotation_thread->();
 
     for my $c ( @{ $free_rotation->{'champions'} } ) {
         my @classes = split /\s+/xms, $c->{'class'};
@@ -208,38 +221,38 @@ func manage_whitelist( $champion, $role, $listed ) {
     manage_list( 'whitelist.db', $champion, $role, $listed );
 }
 
-get( "$base/champion/:champion/:role/blacklist" => method {
+get( "/champion/:champion/:role/blacklist" => method {
     manage_blacklist( $self->param('champion'), $self->param('role'), 1 );
     
     $self->redirect_to('championdb');
 })->name('blacklist');
 
-get( "$base/champion/:champion/:role/no_blacklist" => method {
+get( "/champion/:champion/:role/no_blacklist" => method {
     manage_blacklist( $self->param('champion'), $self->param('role'), 0 );
     
     $self->redirect_to('championdb');
 })->name('no_blacklist');
 
-get( "$base/champion/:champion/:role/whitelist" => method {
+get( "/champion/:champion/:role/whitelist" => method {
     manage_whitelist( $self->param('champion'), $self->param('role'), 1 );
     
     $self->redirect_to('championdb');
 })->name('whitelist');
 
-get( "$base/champion/:champion/:role/no_whitelist" => method {
+get( "/champion/:champion/:role/no_whitelist" => method {
     manage_whitelist( $self->param('champion'), $self->param('role'), 0 );
     
     $self->redirect_to('championdb');
 })->name('no_whitelist');
 
-get "$base/championdb" => method {
+get "/championdb" => method {
     my $db = read_db('champions.db');
     my $free = read_db('free.db');
 
     $self->render( 'championdb', errors => undef, db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
 };
 
-get("$base/user/:name" => method {
+get("/user/:name" => method {
     my $name = $self->param('name');
     unless( defined $name && $name =~ /\w/xms && -f "$name.db" ) {
         return $self->render( text => "No such user: $name" );
@@ -252,17 +265,17 @@ get("$base/user/:name" => method {
     $self->render($self->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw => !!$data->{'pwhash'}, mode => 'profile' );
 })->name('user');
 
-post "$base/user/:name" => method {
+post "/user/:name" => method {
     my $name = $self->param('name');
 
     unless( defined $name && $name =~ /\w/xms && -f "$name.db" ) {
-        return $self->render( text => "No such user: $name" );
+        return $self->render( text => "No such user: $name", user => $name, mode => 'profile' );
     }
 
     my $data = read_db("$name.db");
     
     unless( $data->{'pw'} || $data->{'pwhash'} ) {
-        return $self->render( text => "User deactivated: $name" );
+        return $self->render( text => "User deactivated: $name", user => $name, mode => 'profile' );
     }
 
     my $champions = read_db('champions.db');
@@ -282,7 +295,7 @@ post "$base/user/:name" => method {
     my $given = $d->clone->add( $self->param('current_pw') )->b64digest;
   
     unless( $auth eq $given ) {
-        return $self->render( text => "invalid pw" );
+        return $self->render( text => "invalid pw", user => $name, mode => 'profile' );
     }
 
     if( $self->param('new_pw_1') ) {
@@ -319,8 +332,8 @@ method roll_form {
     return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
 };
 
-get "$base" => \&roll_form;
-get "$base/troll" => \&roll_form;
+get "" => \&roll_form;
+get "/troll" => \&roll_form;
 
 func select_random(@values) {
     my $len = scalar  @values;
@@ -418,15 +431,15 @@ method roll( $trolling ) {
                            roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef), mode => 'roll' );
 }
 
-get "$base/roll" => method {
-    return $self->redirect_to('base');
+get "/roll" => method {
+    return $self->redirect_to('home');
 };
 
-post("$base" => method {
+post("" => method {
     return roll($self); # you cannot call the method directly, use function notation instead
-})->name('base');
+})->name('home');
 
-post("$base/troll" => method {
+post("/troll" => method {
     return roll($self, 'trolling');
 })->name('trollroll');
 
@@ -438,7 +451,7 @@ __DATA__
 <html>
 <!--
   - LoLfever - random meta ftw
-  - Copyright (C) 2013  Florian Hassanen
+  - Copyright (C) 2013, 2015  Florian Hassanen
   - 
   - This file is part of LoLfever.
   -
@@ -458,17 +471,17 @@ __DATA__
 <head>
 <title>LoL Fever</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link href="<%= $config->{'base'} %>/css/bootstrap.min.css" rel="stylesheet" media="screen">
-<link href="<%= $config->{'base'} %>/css/lolfever.css" rel="stylesheet" media="screen">
+<link href="<%= url_for '/css/bootstrap.min.css' %>" rel="stylesheet" media="screen">
+<link href="<%= url_for '/css/lolfever.css' %>" rel="stylesheet" media="screen">
 </head>
 <body>
 <div class="container">
 <div class="navbar">
     <div class="navbar-inner">
-%=      link_to LoLfever => 'base', {}, class => 'brand'
+%=      link_to LoLfever => 'home', {}, class => 'brand'
         <ul class="nav">
             <li <% if( $mode eq 'roll'      ) { %> class="active" <% } %> >
-%=              link_to Roll => 'base'
+%=              link_to Roll => 'home'
             </li>
             <li <% if( $mode eq 'champions' ) { %> class="active" <% } %> >
 %=              link_to Champions => 'championdb'          
@@ -484,7 +497,7 @@ __DATA__
 <%= content %>
 <div style="margin-top: 40px" class="text-center"><small>This is free software. Get the <a href="https://github.com/H4ssi/lolfever">source</a>!</small></div>
 </div>
-<script src="<%= $config->{'base'} %>/js/bootstrap.min.js"></script>
+<script src="<%= url_for '/js/bootstrap.min.js' %>"></script>
 </body>
 </html>
 
