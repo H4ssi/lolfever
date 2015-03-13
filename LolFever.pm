@@ -36,7 +36,7 @@ no warnings 'experimental::smartmatch';
 my $config = plugin 'Config';
 my $base = $config->{'base'} // '';
 
-app->secrets(['HaShien233zyyY?', 'asdfp421c4 1r_']);
+app->secrets(['HaShien233zyyY?', 'asdfp421c4 1r_']); # do not edit last one (used for pw salt)
 app->defaults( layout => 'layout' );
 
 my @base_path = @{ Mojo::Path->new($base)->leading_slash(0) };
@@ -281,7 +281,7 @@ post "/user/:name" => method {
     my $champions = read_db('champions.db');
     my @names = sort ( keys %$champions );
 
-    my $d = Digest->new('SHA-512')->add( app->secret );
+    my $d = Digest->new('SHA-512')->add( app->secrets->[-1] );
     
     my $auth;
 
