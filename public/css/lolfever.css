@@ -17,10 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-a:visited .non-role, a:link .non-role {
-    color: white;
+.champion-table a {
+    display: block;
 }
-a:hover .non-role,a:focus .non-role {
-    color: #005580;
+a:visited .non-role, a:link .non-role {
+    visibility: hidden;
+}
+a:hover .non-role, a:focus .non-role {
+    visibility: visible;
     text-decoration: underline;
 }

@@ -18,7 +18,7 @@
 
 package LolFever;
 
-use Modern::Perl;
+use Modern::Perl '2015';
 
 use Mojolicious::Lite;
 use Method::Signatures::Simple;
@@ -386,9 +386,9 @@ func trollify( $db ) {
 }
 
 method roll( $trolling ) {
-    my @players = grep { $_ } $self->param('players');
-    my @woroles = grep { $_ } $self->param('woroles');
-    my @wochampions = grep { $_ } $self->param('wochampions');
+    my @players = grep { $_ } @{ $self->every_param('players') };
+    my @woroles = grep { $_ } @{ $self->every_param('woroles') };
+    my @wochampions = grep { $_ } @{ $self->every_param('wochampions') };
     
     my %player_specs = map { ( $_ => read_db("$_.db") ) } @players;
 
@@ -476,27 +476,38 @@ __DATA__
 </head>
 <body>
 <div class="container">
-<div class="navbar">
-    <div class="navbar-inner">
-%=      link_to LoLfever => 'home', {}, class => 'brand'
-        <ul class="nav">
-            <li <% if( $mode eq 'roll'      ) { %> class="active" <% } %> >
-%=              link_to Roll => 'home'
-            </li>
-            <li <% if( $mode eq 'champions' ) { %> class="active" <% } %> >
-%=              link_to Champions => 'championdb'          
-            </li>
-            <% if( $mode eq 'profile' ) { %> 
-                <li class="active">
-%=                  link_to ( (stash 'user') . "'" . ( (stash 'user') =~ /s \z/xms ? '' : 's') . ' profile')                
-                </li> 
-            <% } %>
-        </ul>
+<nav class="navbar navbar-default">
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            %= link_to LoLfever => 'home', {}, class => 'navbar-brand'
+        </div>
+        <div class="collapse navbar-collapse" id="navbar">
+            <ul class="nav navbar-nav">
+                <li <% if( $mode eq 'roll'      ) { %> class="active" <% } %> >
+                    %= link_to Roll => 'home'
+                </li>
+                <li <% if( $mode eq 'champions' ) { %> class="active" <% } %> >
+                    %= link_to Champions => 'championdb'          
+                </li>
+                <% if( $mode eq 'profile' ) { %> 
+                    <li class="active">
+                        %= link_to ( (stash 'user') . "'" . ( (stash 'user') =~ /s \z/xms ? '' : 's') . ' profile')                
+                    </li> 
+                <% } %>
+            </ul>
+        </div>
     </div>
-</div>
+</nav>
 <%= content %>
 <div style="margin-top: 40px" class="text-center"><small>This is free software. Get the <a href="https://github.com/H4ssi/lolfever">source</a>!</small></div>
 </div>
+<script src="<%= url_for '/js/jquery.min.js' %>"></script>
 <script src="<%= url_for '/js/bootstrap.min.js' %>"></script>
 </body>
 </html>
@@ -504,193 +515,208 @@ __DATA__
 @@ roll.html.ep
 
 % if( defined $roll ) {
-    <dl class="well dl-horizontal">
-%   for my $player ( sort keys %$roll ) {
-    <dt><%= $player %></dt><dd><%= $roll->{$player}->{'champion'} %> (<%= $roll->{$player}->{'role'} %>)</dd>
-%   }
+    <dl class="well well-sm dl-horizontal">
+    % for my $player ( sort keys %$roll ) {
+        <dt><%= $player %></dt><dd><%= $roll->{$player}->{'champion'} %> (<%= $roll->{$player}->{'role'} %>)</dd>
+    % }
     </dl>
 % }
 
-%= form_for url_for() => (method => 'POST', class => 'form-horizontal') => begin
+%= form_for url_for() => (method => 'POST') => begin
 
-<div class="control-group">
-    <label class="control-label">
-    Players
-    </label>
-    <div class="controls">
-%   for my $u (@$users) {
-        <label class="checkbox">
-%=      input_tag "players", type => 'checkbox', value => $u, $u ~~ @$players ? ( checked => 'checked' ) : ()
-%=      link_to $u => 'user' => { name => $u }
-        </label>
-%   }
-    </div>
+<div class="form-group">
+    <label>Players</label>
+    % for my $u (@$users) {
+        <div class="checkbox">
+            <label>
+                %= input_tag "players", type => 'checkbox', value => $u, $u ~~ @$players ? ( checked => 'checked' ) : ()
+                %= link_to $u => 'user' => { name => $u }
+            </label>
+        </div>
+    % }
 </div>
 
-<div class="control-group">
-    <label class="control-label">
-    Excluded roles
-    </label>
-    <div class="controls">
-%   for my $r (@$roles) {
-        <label class="checkbox">
-%=      input_tag "woroles", type => 'checkbox', value => $r, $r ~~ @$woroles ? ( checked => 'checked' ) : ()
-%=      $r
-        </label>
-%   }
-    </div>
+<div class="form-group">
+    <label>Excluded roles</label>
+    % for my $r (@$roles) {
+        <div class="checkbox">
+            <label>
+                %= input_tag "woroles", type => 'checkbox', value => $r, $r ~~ @$woroles ? ( checked => 'checked' ) : ()
+                %= $r
+            </label>
+        </div>
+    % }
 </div>
 
-<div class="control-group">
-    <label class="control-label">
-    Excluded champions
-    </label>
-    <div class="controls">
-%   for my $i (0..3) {
-        <select name="wochampions">
+<div class="form-group">
+    <label>Excluded champions</label>
+    % for my $i (0..3) {
+        <select name="wochampions" class="form-control">
             <option value=""></option>
-%       for my $c (@$champions) {
-            <option value="<%= $c %>"
-%           if( $c eq ($wochampions->[$i] // '') ) {
-                selected="selected"
-%           }
-            ><%= $c %></option>
-%       }
-        </select><br/>
-%   }
-    </div>
+            % for my $c (@$champions) {
+                <option value="<%= $c %>"
+                    % if( $c eq ($wochampions->[$i] // '') ) {
+                        selected="selected"
+                    % }
+                ><%= $c %></option>
+            % }
+        </select>
+    % }
 </div>
 
-<div class="control-group">
-    <div class="controls">
-    <button type="submit" class="btn">Roll</button>
-    </div>
-</div>
-% end
+<button type="submit" class="btn btn-default">Roll</button>
+
+% end 
+%# of form
 
 % if( defined $fails ) {
-<pre>
-%= $fails
-</pre>
+    <pre>
+        %= $fails
+    </pre>
 % }
 
 
 @@ user.html.ep
-<h2>Possible roles</h2>
-<ul class="inline">
+
+<h3>Possible roles</h3>
+<ul class="list-inline">
 % for my $c (@$roles) {
-%   if( $can->{$c} ) {
+    % if( $can->{$c} ) {
         <li><%= $c %></li>
-%   }
+    % }
 % }
 </ul>
-<h2>Owned champions</h2>
-<ul class="inline">
+
+<h3>Owned champions</h3>
+<ul class="list-inline">
 % for my $n (@$names) {
-%   if( $owns->{$n} ) {
+    % if( $owns->{$n} ) {
         <li><%= $n %></li>
-%   }
+    % }
 % }
 </ul>
-%= link_to Edit => url_for->query(edit => 1)
+
+%= link_to Edit => url_for->query(edit => 1) => (class => 'btn btn-default')
+
 
 @@ user_edit.html.ep
+
 %= form_for url_for() => (method => 'POST') => begin
-<fieldset>
-<legend>
-Possible roles
-</legend>
-% for my $c (@$roles) {
-    <label class="checkbox">
-%= input_tag "can:$c", type => 'checkbox', value => 1, $can->{$c} ? ( checked => 'checked' ) : ()
-    <%= $c %>
-    </label>
-% }
-<br/>
-<legend>
-Owned champions
-</legend>
-% for my $n (@$names) {
-    <label class="checkbox">
-%= input_tag "owns:$n", type => 'checkbox', value => 1, $owns->{$n} ? ( checked => 'checked' ) : ()
-    <%= $n %>
-    </label>
-% }
-<br/>
-<legend>
-Authentication
-</legend>
-<label for="current_pw">
-Current password <strong>(required)</strong>
-</label>
-%= input_tag 'current_pw' => ( type => 'password', id => 'current_pw' )
-<label for="new_pw_1">
-New password 
-% if( !$pw ) {
-    <strong>(Password change required!)</strong>
-% } else {
-    (Leave empty if you do not want to change your password)
-% }
-</label>
-%= input_tag 'new_pw_1' => ( type => 'password', id => 'new_pw_1' )
-<label for="new_pw_2">
-Retype new password
-</label>
-%= input_tag 'new_pw_2' => ( type => 'password', id => 'new_pw_2' )
-<br>
+
+<div class="form-group">
+    <label>Possible roles</label>
+
+    % for my $c (@$roles) {
+        <div class="checkbox">    
+            <label>
+                %= input_tag "can:$c", type => 'checkbox', value => 1, $can->{$c} ? ( checked => 'checked' ) : ()
+                <%= $c %>
+            </label>
+        </div>
+    % }
+</div>
+
+<div class="form-group">
+    <label>Owned champions</label>
+
+    % for my $n (@$names) {
+        <div class="checkbox">    
+            <label>
+                %= input_tag "owns:$n", type => 'checkbox', value => 1, $owns->{$n} ? ( checked => 'checked' ) : ()
+                <%= $n %>
+            </label>
+        </div>
+    % }
+</div>
+
+<div class="form-group">
+    <label>Authentication</label>
+
+    <div class="form-group">
+        <label for="current_pw">
+            Current password <strong>(required)</strong>
+        </label>
+        %= input_tag 'current_pw' => ( type => 'password', placeholder => 'Password', id => 'current_pw', class => 'form-control' )
+    </div>
+
+    <div class="form-group">
+        <label for="new_pw_1">
+            New password 
+            % if( !$pw ) {
+                <strong>(Password change required!)</strong>
+            % } else {
+                (Leave empty if you do not want to change your password)
+            % }
+        </label>
+        %= input_tag 'new_pw_1' => ( type => 'password', placeholder => 'Password', id => 'new_pw_1', class => 'form-control' )
+    </div>
+
+    <div class="form-group">
+        <label for="new_pw_2">
+            Retype new password
+        </label>
+        %= input_tag 'new_pw_2' => ( type => 'password', placeholder => 'Password', id => 'new_pw_2', class => 'form-control' )
+    </div>
+</div>
+
 <button type="submit" class="btn">Save</button>
-</fieldset>
+
 % end
+%# of form
+
 
 @@ championdb.html.ep
+
 %= form_for url_for() => (method => 'POST') => begin
-<button type="submit" class="btn">Update DB from the Interwebs</button>
-(You need to do this once per free champion rotation)
+    <button type="submit" class="btn">Update DB from the Interwebs</button>
+    (You need to do this once per free champion rotation)
 % end
+
+
 % if( $updated ) {
-%   if( defined $errors ) {
-        <div class="alert alert-error">
-%       for my $e (@$errors ) {
-            <p><%= $e %></p>
-%       }
+    % if( defined $errors ) {
+        <div class="alert alert-danger" role="alert">
+            % for my $e (@$errors) {
+                <p><%= $e %></p>
+            % }
         </div>
-%   } else {
-    <div class="alert alert-success">
-        Champion DB was updated without errors!
-    </div>
-%   }
+    % } else {
+        <div class="alert alert-success" role="alert">
+            Champion DB was updated without errors!
+        </div>
+    % }
 % }
-<dl class="dl-horizontal">
-% for my $c (sort keys %$db) {
-    <dt><!-- 
-%   if( $free->{$c} ) {
-        --><span class="label label-important">free</span> <!--
-%   }
-    --> <%= $c %></dt>
-    <dd><!--
-%   my $count = 0;
-%   for my $r ( @$roles ) {
-%       if( $count++ != 0 ) { 
-            --> <!--
-%       }
-%       if( $db->{$c}->{$r} ) {
---><%=      link_to $blacklist->{$c}->{$r} ? 'no_blacklist' : 'blacklist' => { champion => $c, role => $r } => begin %><!--
-%               if( $blacklist->{$c}->{$r} ) {
-                    --><s><%= $r %></s><!--
-%               } else {
-                    --><%= $r %><!--
-%               }
---><%=      end %><!--
-%       } else {
---><%=      link_to $whitelist->{$c}->{$r} ? 'no_whitelist' : 'whitelist' => { champion => $c, role => $r } => begin %><!--
-%               if( $whitelist->{$c}->{$r} ) {
-                    --><u><%= $r %></u><!--
-%               } else {
-                    --><span class="non-role"><%= $r %></span><!--
-%               }
---><%=      end %><!--
-%       }
-%   }
-    --></dd>
-% }
-</dl>
+
+<table class="table table-hover table-condensed champion-table"><tbody>
+    % for my $c (sort keys %$db) {
+        <tr>
+            <th> 
+                <%= $c %>
+                % if( $free->{$c} ) {
+                    <span class="label label-info">free</span>
+                % }
+            </th>
+            % for my $r ( @$roles ) {
+                <td>
+                    % if( $db->{$c}->{$r} ) {
+                        %= link_to $blacklist->{$c}->{$r} ? 'no_blacklist' : 'blacklist' => { champion => $c, role => $r } => begin
+                            % if( $blacklist->{$c}->{$r} ) {
+                                <s><%= $r %></s>
+                            % } else {
+                                <%= $r %>
+                            % }
+                        % end
+                    % } else {
+                        %= link_to $whitelist->{$c}->{$r} ? 'no_whitelist' : 'whitelist' => { champion => $c, role => $r } => begin
+                            % if( $whitelist->{$c}->{$r} ) {
+                                <u><%= $r %></u>
+                            % } else {
+                                <span class="non-role"><%= $r %></span>
+                            % }
+                        % end
+                    % }
+                </td>
+            % }
+        </tr>
+    % }
+</tbody></table>
