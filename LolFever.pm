@@ -282,8 +282,7 @@ post "/user/:name" => sub ($c) {
         unless( $c->param('new_pw_1') eq $c->param('new_pw_2') ) {
             return $c->redner( text => "new pws did not match" );
         } else {
-            $data->{'pwhash'} = {} unless defined $data->{'pwhash'};
-            $data->{'pwhash'}->{ $d->clone->add( $c->param('new_pw_1') )->b64digest } = 1;
+            $data->{'pwhash'} = { $d->clone->add( $c->param('new_pw_1') )->b64digest => 1 };
         }
     }
 
