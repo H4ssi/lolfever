@@ -1,7 +1,6 @@
 requires 'Mojolicious', '>= 6.00', '< 7.00';
 requires 'Modern::Perl', '1.2015';
 requires 'Method::Signatures::Simple';
-requires 'Web::Scraper';
 
 # non blocking optional packages
 requires 'EV', '>= 4.0';

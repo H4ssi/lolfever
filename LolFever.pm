@@ -25,8 +25,6 @@ use Method::Signatures::Simple;
 
 use Mojo::Path;
 
-use Web::Scraper;
-
 use Digest;
 
 no warnings 'experimental::smartmatch';
@@ -106,10 +104,6 @@ post("/championdb" => method {
             $self->ua->get('http://www.lolpro.com' => $d->begin);
         },
         func ($d, $champs, $guides, $frees) {
-            my $free_rotation = (scraper {
-                process 'li.game-champion', 'champions[]' => { class => '@class' };
-            })->scrape($frees->res->body);
-
             my $db;
             my $free;
             my @errors;
@@ -161,21 +155,21 @@ post("/championdb" => method {
                 }
             }
 
-            for my $c ( @{ $free_rotation->{'champions'} } ) {
-                my @classes = split /\s+/xms, $c->{'class'};
+            for my $c ( @{ $frees->res->dom->find('li.game-champion') } ) {
+                my @classes = split /\s+/xms, $c->attr('class');
 
                 my ($name_info) = grep { /\A game-champion-/xms && !/\A game-champion-tag-/xms } @classes;
 
                 if( $name_info =~ /\A game-champion-(.*) \z/xms ) {
-                    (my $name = $1) =~ s/[^a-z]//xmsg;
+                    my $name = $1 =~ s/[^a-z]//xmsgr;
 
                     unless( exists $db->{$name} ) {
                         push @errors, "What is this for a champion: $name?";
                     } else {
                         $free->{$name}->{'free'}  = 1 if 'game-champion-tag-free'     ~~ @classes;
-                        $db->{$name}->{'top'}     = 1 if 'game-champion-tag-top-lane' ~~ @classes;
-                        $db->{$name}->{'mid'}     = 1 if 'game-champion-tag-mid-lane' ~~ @classes;
-                        $db->{$name}->{'adcarry'} = 1 if 'game-champion-tag-bot-lane' ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
+                        $db->{$name}->{'top'}     = 1 if 'game-champion-tag-top'      ~~ @classes;
+                        $db->{$name}->{'mid'}     = 1 if 'game-champion-tag-mid'      ~~ @classes;
+                        $db->{$name}->{'adcarry'} = 1 if 'game-champion-tag-duo'      ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
                         $db->{$name}->{'support'} = 1 if 'game-champion-tag-support'  ~~ @classes;
                         $db->{$name}->{'jungle'}  = 1 if 'game-champion-tag-jungler'  ~~ @classes;
                     }

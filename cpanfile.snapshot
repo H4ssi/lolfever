@@ -72,24 +72,6 @@ DISTRIBUTIONS
     requirements:
       ExtUtils::MakeMaker 0
       common::sense 0
-  Encode-Locale-1.04
-    pathname: G/GA/GAAS/Encode-Locale-1.04.tar.gz
-    provides:
-      Encode::Locale 1.04
-    requirements:
-      Encode 2
-      Encode::Alias 0
-      ExtUtils::MakeMaker 0
-      perl 5.008
-  ExtUtils-Config-0.008
-    pathname: L/LE/LEONT/ExtUtils-Config-0.008.tar.gz
-    provides:
-      ExtUtils::Config 0.008
-    requirements:
-      Data::Dumper 0
-      ExtUtils::MakeMaker 6.30
-      strict 0
-      warnings 0
   ExtUtils-Depends-0.404
     pathname: X/XA/XAOC/ExtUtils-Depends-0.404.tar.gz
     provides:
@@ -100,200 +82,6 @@ DISTRIBUTIONS
       File::Spec 0
       IO::File 0
       perl 5.006
-  ExtUtils-Helpers-0.022
-    pathname: L/LE/LEONT/ExtUtils-Helpers-0.022.tar.gz
-    provides:
-      ExtUtils::Helpers 0.022
-      ExtUtils::Helpers::Unix 0.022
-      ExtUtils::Helpers::VMS 0.022
-      ExtUtils::Helpers::Windows 0.022
-    requirements:
-      Carp 0
-      Exporter 5.57
-      ExtUtils::MakeMaker 6.30
-      File::Basename 0
-      File::Copy 0
-      File::Spec::Functions 0
-      Module::Load 0
-      Text::ParseWords 3.24
-      strict 0
-      warnings 0
-  ExtUtils-InstallPaths-0.011
-    pathname: L/LE/LEONT/ExtUtils-InstallPaths-0.011.tar.gz
-    provides:
-      ExtUtils::InstallPaths 0.011
-    requirements:
-      Carp 0
-      ExtUtils::Config 0.002
-      ExtUtils::MakeMaker 0
-      File::Spec 0
-      perl 5.006
-      strict 0
-      warnings 0
-  File-Listing-6.04
-    pathname: G/GA/GAAS/File-Listing-6.04.tar.gz
-    provides:
-      File::Listing 6.04
-      File::Listing::apache 6.04
-      File::Listing::dosftp 6.04
-      File::Listing::netware 6.04
-      File::Listing::unix 6.04
-      File::Listing::vms 6.04
-    requirements:
-      ExtUtils::MakeMaker 0
-      HTTP::Date 6
-      perl 5.006002
-  HTML-Parser-3.71
-    pathname: G/GA/GAAS/HTML-Parser-3.71.tar.gz
-    provides:
-      HTML::Entities 3.69
-      HTML::Filter 3.57
-      HTML::HeadParser 3.71
-      HTML::LinkExtor 3.69
-      HTML::Parser 3.71
-      HTML::PullParser 3.57
-      HTML::TokeParser 3.69
-    requirements:
-      ExtUtils::MakeMaker 0
-      HTML::Tagset 3
-      XSLoader 0
-      perl 5.008
-  HTML-Selector-XPath-0.18
-    pathname: C/CO/CORION/HTML-Selector-XPath-0.18.tar.gz
-    provides:
-      HTML::Selector::XPath 0.18
-    requirements:
-      ExtUtils::MakeMaker 6.59
-      Test::Base 0
-      Test::More 0
-      perl 5.008001
-  HTML-Tagset-3.20
-    pathname: P/PE/PETDANCE/HTML-Tagset-3.20.tar.gz
-    provides:
-      HTML::Tagset 3.20
-    requirements:
-      ExtUtils::MakeMaker 0
-  HTML-Tree-5.03
-    pathname: C/CJ/CJM/HTML-Tree-5.03.tar.gz
-    provides:
-      HTML::AsSubs 5.03
-      HTML::Element 5.03
-      HTML::Element::traverse 5.03
-      HTML::Parse 5.03
-      HTML::Tree 5.03
-      HTML::TreeBuilder 5.03
-    requirements:
-      Carp 0
-      Encode 0
-      Exporter 0
-      HTML::Entities 0
-      HTML::Parser 3.46
-      HTML::Tagset 3.02
-      Module::Build 0.2808
-      Scalar::Util 0
-      Test::Fatal 0
-      Test::More 0
-      base 0
-      integer 0
-      perl 5.008
-  HTML-TreeBuilder-XPath-0.14
-    pathname: M/MI/MIROD/HTML-TreeBuilder-XPath-0.14.tar.gz
-    provides:
-      HTML::Element 0.14
-      HTML::TreeBuilder::XPath 0.14
-      HTML::TreeBuilder::XPath::Attribute 0.14
-      HTML::TreeBuilder::XPath::Node 0.14
-      HTML::TreeBuilder::XPath::Root 0.14
-      HTML::TreeBuilder::XPath::TextNode 0.14
-    requirements:
-      ExtUtils::MakeMaker 0
-      HTML::TreeBuilder 0
-      List::Util 0
-      XML::XPathEngine 0.12
-  HTTP-Cookies-6.01
-    pathname: G/GA/GAAS/HTTP-Cookies-6.01.tar.gz
-    provides:
-      HTTP::Cookies 6.01
-      HTTP::Cookies::Microsoft 6.00
-      HTTP::Cookies::Netscape 6.00
-    requirements:
-      ExtUtils::MakeMaker 0
-      HTTP::Date 6
-      HTTP::Headers::Util 6
-      Time::Local 0
-      perl 5.008001
-  HTTP-Daemon-6.01
-    pathname: G/GA/GAAS/HTTP-Daemon-6.01.tar.gz
-    provides:
-      HTTP::Daemon 6.01
-      HTTP::Daemon::ClientConn 6.01
-    requirements:
-      ExtUtils::MakeMaker 0
-      HTTP::Date 6
-      HTTP::Request 6
-      HTTP::Response 6
-      HTTP::Status 6
-      IO::Socket 0
-      LWP::MediaTypes 6
-      Sys::Hostname 0
-      perl 5.008001
-  HTTP-Date-6.02
-    pathname: G/GA/GAAS/HTTP-Date-6.02.tar.gz
-    provides:
-      HTTP::Date 6.02
-    requirements:
-      ExtUtils::MakeMaker 0
-      Time::Local 0
-      perl 5.006002
-  HTTP-Message-6.06
-    pathname: G/GA/GAAS/HTTP-Message-6.06.tar.gz
-    provides:
-      HTTP::Config 6.00
-      HTTP::Headers 6.05
-      HTTP::Headers::Auth 6.00
-      HTTP::Headers::ETag 6.00
-      HTTP::Headers::Util 6.03
-      HTTP::Message 6.06
-      HTTP::Request 6.00
-      HTTP::Request::Common 6.04
-      HTTP::Response 6.04
-      HTTP::Status 6.03
-    requirements:
-      Compress::Raw::Zlib 0
-      Encode 2.21
-      Encode::Locale 1
-      ExtUtils::MakeMaker 0
-      HTTP::Date 6
-      IO::Compress::Bzip2 2.021
-      IO::Compress::Deflate 0
-      IO::Compress::Gzip 0
-      IO::HTML 0
-      IO::Uncompress::Bunzip2 2.021
-      IO::Uncompress::Gunzip 0
-      IO::Uncompress::Inflate 0
-      IO::Uncompress::RawInflate 0
-      LWP::MediaTypes 6
-      MIME::Base64 2.1
-      MIME::QuotedPrint 0
-      URI 1.10
-      perl 5.008001
-  HTTP-Negotiate-6.01
-    pathname: G/GA/GAAS/HTTP-Negotiate-6.01.tar.gz
-    provides:
-      HTTP::Negotiate 6.01
-    requirements:
-      ExtUtils::MakeMaker 0
-      HTTP::Headers 6
-      perl 5.008001
-  IO-HTML-1.001
-    pathname: C/CJ/CJM/IO-HTML-1.001.tar.gz
-    provides:
-      IO::HTML 1.001
-    requirements:
-      Carp 0
-      Encode 2.10
-      Exporter 5.57
-      ExtUtils::MakeMaker 6.30
   IO-Socket-SSL-2.012
     pathname: S/SU/SULLR/IO-Socket-SSL-2.012.tar.gz
     provides:
@@ -325,13 +113,6 @@ DISTRIBUTIONS
       Socket 1.94
       Test::More 0.88
       constant 1.03
-  LWP-MediaTypes-6.02
-    pathname: G/GA/GAAS/LWP-MediaTypes-6.02.tar.gz
-    provides:
-      LWP::MediaTypes 6.02
-    requirements:
-      ExtUtils::MakeMaker 0
-      perl 5.006002
   Method-Signatures-Simple-1.07
     pathname: R/RH/RHESA/Method-Signatures-Simple-1.07.tar.gz
     provides:
@@ -404,31 +185,6 @@ DISTRIBUTIONS
       Text::ParseWords 0
       perl 5.008000
       version 0.87
-  Module-Build-Tiny-0.039
-    pathname: L/LE/LEONT/Module-Build-Tiny-0.039.tar.gz
-    provides:
-      Module::Build::Tiny 0.039
-    requirements:
-      CPAN::Meta 0
-      DynaLoader 0
-      Exporter 5.57
-      ExtUtils::CBuilder 0
-      ExtUtils::Config 0.003
-      ExtUtils::Helpers 0.020
-      ExtUtils::Install 0
-      ExtUtils::InstallPaths 0.002
-      ExtUtils::ParseXS 0
-      File::Basename 0
-      File::Find 0
-      File::Path 0
-      File::Spec::Functions 0
-      Getopt::Long 2.36
-      JSON::PP 2
-      Pod::Man 0
-      TAP::Harness::Env 0
-      perl 5.006
-      strict 0
-      warnings 0
   Module-Implementation-0.09
     pathname: D/DR/DROLSKY/Module-Implementation-0.09.tar.gz
     provides:
@@ -581,21 +337,6 @@ DISTRIBUTIONS
       ExtUtils::MakeMaker 0
       Socket 1.94
       Test::More 0.88
-  Net-HTTP-6.07
-    pathname: M/MS/MSCHILLI/Net-HTTP-6.07.tar.gz
-    provides:
-      Net::HTTP 6.07
-      Net::HTTP::Methods 6.07
-      Net::HTTP::NB 6.04
-      Net::HTTPS 6.04
-    requirements:
-      Compress::Raw::Zlib 0
-      ExtUtils::MakeMaker 0
-      IO::Compress::Gzip 0
-      IO::Select 0
-      IO::Socket::INET 0
-      URI 0
-      perl 5.006002
   Net-SSLeay-1.68
     pathname: M/MI/MIKEM/Net-SSLeay-1.68.tar.gz
     provides:
@@ -606,13 +347,6 @@ DISTRIBUTIONS
       MIME::Base64 0
       Test::More 0.60_01
       perl 5.005
-  Spiffy-0.46
-    pathname: I/IN/INGY/Spiffy-0.46.tar.gz
-    provides:
-      Spiffy 0.46
-      Spiffy::mixin undef
-    requirements:
-      ExtUtils::MakeMaker 6.30
   Sub-Exporter-Progressive-0.001011
     pathname: F/FR/FREW/Sub-Exporter-Progressive-0.001011.tar.gz
     provides:
@@ -628,29 +362,6 @@ DISTRIBUTIONS
       Exporter 5.57
       ExtUtils::MakeMaker 0
       XSLoader 0
-      strict 0
-      warnings 0
-  Test-Base-0.88
-    pathname: I/IN/INGY/Test-Base-0.88.tar.gz
-    provides:
-      Test::Base 0.88
-      Test::Base::Block 0.88
-      Test::Base::Filter undef
-      Test::Base::Handle 0.88
-    requirements:
-      ExtUtils::MakeMaker 6.30
-      Filter::Util::Call 0
-      Spiffy 0.40
-  Test-Fatal-0.014
-    pathname: R/RJ/RJBS/Test-Fatal-0.014.tar.gz
-    provides:
-      Test::Fatal 0.014
-    requirements:
-      Carp 0
-      Exporter 5.57
-      ExtUtils::MakeMaker 0
-      Test::Builder 0
-      Try::Tiny 0.07
       strict 0
       warnings 0
   Test-Requires-0.08
@@ -673,80 +384,6 @@ DISTRIBUTIONS
       constant 0
       strict 0
       warnings 0
-  UNIVERSAL-require-0.18
-    pathname: N/NE/NEILB/UNIVERSAL-require-0.18.tar.gz
-    provides:
-      UNIVERSAL::require 0.18
-    requirements:
-      Carp 0
-      ExtUtils::MakeMaker 0
-      Test::More 0.47
-      perl 5.006
-      strict 0
-      warnings 0
-  URI-1.67
-    pathname: E/ET/ETHER/URI-1.67.tar.gz
-    provides:
-      URI 1.67
-      URI::Escape 3.31
-      URI::Heuristic 4.20
-      URI::IRI undef
-      URI::QueryParam undef
-      URI::Split undef
-      URI::URL 5.04
-      URI::WithBase 2.20
-      URI::_foreign undef
-      URI::_generic undef
-      URI::_idna undef
-      URI::_ldap 1.67
-      URI::_login undef
-      URI::_punycode 1.67
-      URI::_query undef
-      URI::_segment undef
-      URI::_server undef
-      URI::_userpass undef
-      URI::data 1.67
-      URI::file 4.21
-      URI::file::Base undef
-      URI::file::FAT undef
-      URI::file::Mac undef
-      URI::file::OS2 undef
-      URI::file::QNX undef
-      URI::file::Unix undef
-      URI::file::Win32 undef
-      URI::ftp undef
-      URI::gopher undef
-      URI::http undef
-      URI::https undef
-      URI::ldap 1.67
-      URI::ldapi undef
-      URI::ldaps undef
-      URI::mailto undef
-      URI::mms undef
-      URI::news undef
-      URI::nntp undef
-      URI::pop undef
-      URI::rlogin undef
-      URI::rsync undef
-      URI::rtsp undef
-      URI::rtspu undef
-      URI::sip 1.67
-      URI::sips undef
-      URI::snews undef
-      URI::ssh undef
-      URI::telnet undef
-      URI::tn3270 undef
-      URI::urn undef
-      URI::urn::isbn undef
-      URI::urn::oid undef
-    requirements:
-      Exporter 5.57
-      ExtUtils::MakeMaker 0
-      MIME::Base64 2
-      Scalar::Util 0
-      parent 0
-      perl 5.008001
-      utf8 0
   Variable-Magic-0.56
     pathname: V/VP/VPIT/Variable-Magic-0.56.tar.gz
     provides:
@@ -761,145 +398,9 @@ DISTRIBUTIONS
       base 0
       lib 0
       perl 5.008
-  WWW-RobotRules-6.02
-    pathname: G/GA/GAAS/WWW-RobotRules-6.02.tar.gz
-    provides:
-      WWW::RobotRules 6.02
-      WWW::RobotRules::AnyDBM_File 6.00
-      WWW::RobotRules::InCore 6.02
-    requirements:
-      AnyDBM_File 0
-      ExtUtils::MakeMaker 0
-      Fcntl 0
-      URI 1.10
-      perl 5.008001
-  Web-Scraper-0.38
-    pathname: M/MI/MIYAGAWA/Web-Scraper-0.38.tar.gz
-    provides:
-      Web::Scraper 0.38
-      Web::Scraper::Filter undef
-      Web::Scraper::LibXML undef
-    requirements:
-      ExtUtils::MakeMaker 6.59
-      HTML::Entities 0
-      HTML::Selector::XPath 0.03
-      HTML::Tagset 0
-      HTML::TreeBuilder 3.23
-      HTML::TreeBuilder::XPath 0.08
-      LWP 5.827
-      Module::Build::Tiny 0.039
-      Scalar::Util 0
-      Test::Base 0
-      Test::More 0
-      Test::Requires 0
-      UNIVERSAL::require 0
-      URI 0
-      XML::XPathEngine 0.08
-      YAML 0
-      perl 5.008001
-  XML-XPathEngine-0.14
-    pathname: M/MI/MIROD/XML-XPathEngine-0.14.tar.gz
-    provides:
-      XML::XPathEngine 0.14
-      XML::XPathEngine::Boolean undef
-      XML::XPathEngine::Expr undef
-      XML::XPathEngine::Function undef
-      XML::XPathEngine::Literal undef
-      XML::XPathEngine::LocationPath undef
-      XML::XPathEngine::NodeSet undef
-      XML::XPathEngine::Number undef
-      XML::XPathEngine::Root undef
-      XML::XPathEngine::Step undef
-      XML::XPathEngine::Variable undef
-    requirements:
-      ExtUtils::MakeMaker 0
-      Test::More 0
-  YAML-1.14
-    pathname: I/IN/INGY/YAML-1.14.tar.gz
-    provides:
-      YAML 1.14
-      YAML::Any 1.14
-      YAML::Dumper undef
-      YAML::Dumper::Base undef
-      YAML::Error undef
-      YAML::Loader undef
-      YAML::Loader::Base undef
-      YAML::Marshall undef
-      YAML::Mo 0.88
-      YAML::Node undef
-      YAML::Tag undef
-      YAML::Type::blessed undef
-      YAML::Type::code undef
-      YAML::Type::glob undef
-      YAML::Type::ref undef
-      YAML::Type::regexp undef
-      YAML::Type::undef undef
-      YAML::Types undef
-      YAML::Warning undef
-      yaml_mapping undef
-      yaml_scalar undef
-      yaml_sequence undef
-    requirements:
-      ExtUtils::MakeMaker 0
-      perl 5.008001
   common-sense-3.73
     pathname: M/ML/MLEHMANN/common-sense-3.73.tar.gz
     provides:
       common::sense 3.73
     requirements:
       ExtUtils::MakeMaker 0
-  libwww-perl-6.13
-    pathname: E/ET/ETHER/libwww-perl-6.13.tar.gz
-    provides:
-      LWP 6.13
-      LWP::Authen::Basic undef
-      LWP::Authen::Digest undef
-      LWP::Authen::Ntlm 6.13
-      LWP::ConnCache 6.13
-      LWP::Debug undef
-      LWP::DebugFile undef
-      LWP::MemberMixin undef
-      LWP::Protocol 6.13
-      LWP::Protocol::GHTTP undef
-      LWP::Protocol::MyFTP undef
-      LWP::Protocol::cpan undef
-      LWP::Protocol::data undef
-      LWP::Protocol::file undef
-      LWP::Protocol::ftp undef
-      LWP::Protocol::gopher undef
-      LWP::Protocol::http undef
-      LWP::Protocol::http::Socket undef
-      LWP::Protocol::http::SocketMethods undef
-      LWP::Protocol::loopback undef
-      LWP::Protocol::mailto undef
-      LWP::Protocol::nntp undef
-      LWP::Protocol::nogo undef
-      LWP::RobotUA 6.13
-      LWP::Simple 6.13
-      LWP::UserAgent 6.13
-    requirements:
-      Digest::MD5 0
-      Encode 2.12
-      Encode::Locale 0
-      ExtUtils::MakeMaker 0
-      File::Listing 6
-      HTML::Entities 0
-      HTML::HeadParser 0
-      HTTP::Cookies 6
-      HTTP::Daemon 6
-      HTTP::Date 6
-      HTTP::Negotiate 6
-      HTTP::Request 6
-      HTTP::Request::Common 6
-      HTTP::Response 6
-      HTTP::Status 6
-      IO::Select 0
-      IO::Socket 0
-      LWP::MediaTypes 6
-      MIME::Base64 2.1
-      Net::FTP 2.58
-      Net::HTTP 6.07
-      URI 1.10
-      URI::Escape 0
-      WWW::RobotRules 6
-      perl 5.008001
