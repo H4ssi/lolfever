@@ -26,7 +26,6 @@ use Method::Signatures::Simple;
 use Mojo::Path;
 
 use Web::Scraper;
-use Data::Dumper;
 
 use Digest;
 
@@ -423,7 +422,7 @@ method roll( $trolling ) {
     my @champions = keys( %$db );
 
     return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
-                           roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? Dumper(\@fails) : undef), mode => 'roll' );
+                           roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $self->dumper(\@fails) : undef), mode => 'roll' );
 }
 
 get "/roll" => method {
@@ -565,9 +564,7 @@ __DATA__
 %# of form
 
 % if( defined $fails ) {
-    <pre>
-        %= $fails
-    </pre>
+    <pre><%= $fails %></pre>
 % }
 
 
