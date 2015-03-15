@@ -1,31 +1,5 @@
 # carton snapshot format: version 1.0
 DISTRIBUTIONS
-  B-Hooks-EndOfScope-0.14
-    pathname: E/ET/ETHER/B-Hooks-EndOfScope-0.14.tar.gz
-    provides:
-      B::Hooks::EndOfScope 0.14
-      B::Hooks::EndOfScope::PP 0.14
-      B::Hooks::EndOfScope::XS 0.14
-    requirements:
-      ExtUtils::CBuilder 0.26
-      ExtUtils::MakeMaker 0
-      Module::Implementation 0.05
-      Module::Runtime 0.012
-      Sub::Exporter::Progressive 0.001006
-      Variable::Magic 0.48
-      strict 0
-      warnings 0
-  B-Hooks-OP-Check-0.19
-    pathname: Z/ZE/ZEFRAM/B-Hooks-OP-Check-0.19.tar.gz
-    provides:
-      B::Hooks::OP::Check 0.19
-      B::Hooks::OP::Check::Install::Files undef
-    requirements:
-      ExtUtils::Depends 0.302
-      ExtUtils::MakeMaker 6.42
-      Test::More 0
-      parent 0
-      perl 5.008001
   CPAN-Meta-2.150001
     pathname: D/DA/DAGOLDEN/CPAN-Meta-2.150001.tar.gz
     provides:
@@ -49,21 +23,6 @@ DISTRIBUTIONS
       strict 0
       version 0.88
       warnings 0
-  Devel-Declare-0.006017
-    pathname: E/ET/ETHER/Devel-Declare-0.006017.tar.gz
-    provides:
-      Devel::Declare 0.006017
-      Devel::Declare::Context::Simple 0.006017
-      Devel::Declare::MethodInstaller::Simple 0.006017
-    requirements:
-      B::Hooks::EndOfScope 0.05
-      B::Hooks::OP::Check 0.19
-      ExtUtils::Depends 0.302
-      Scalar::Util 1.11
-      Sub::Name 0
-      Test::More 0.88
-      Test::Requires 0
-      perl 5.008001
   EV-4.18
     pathname: M/ML/MLEHMANN/EV-4.18.tar.gz
     provides:
@@ -72,16 +31,6 @@ DISTRIBUTIONS
     requirements:
       ExtUtils::MakeMaker 0
       common::sense 0
-  ExtUtils-Depends-0.404
-    pathname: X/XA/XAOC/ExtUtils-Depends-0.404.tar.gz
-    provides:
-      ExtUtils::Depends 0.404
-    requirements:
-      Data::Dumper 0
-      ExtUtils::MakeMaker 0
-      File::Spec 0
-      IO::File 0
-      perl 5.006
   IO-Socket-SSL-2.012
     pathname: S/SU/SULLR/IO-Socket-SSL-2.012.tar.gz
     provides:
@@ -113,13 +62,6 @@ DISTRIBUTIONS
       Socket 1.94
       Test::More 0.88
       constant 1.03
-  Method-Signatures-Simple-1.07
-    pathname: R/RH/RHESA/Method-Signatures-Simple-1.07.tar.gz
-    provides:
-      Method::Signatures::Simple 1.07
-    requirements:
-      Devel::Declare 0.003001
-      ExtUtils::MakeMaker 6.30
   Modern-Perl-1.20150127
     pathname: C/CH/CHROMATIC/Modern-Perl-1.20150127.tar.gz
     provides:
@@ -185,27 +127,6 @@ DISTRIBUTIONS
       Text::ParseWords 0
       perl 5.008000
       version 0.87
-  Module-Implementation-0.09
-    pathname: D/DR/DROLSKY/Module-Implementation-0.09.tar.gz
-    provides:
-      Module::Implementation 0.09
-    requirements:
-      Carp 0
-      ExtUtils::MakeMaker 0
-      Module::Runtime 0.012
-      Try::Tiny 0
-      strict 0
-      warnings 0
-  Module-Runtime-0.014
-    pathname: Z/ZE/ZEFRAM/Module-Runtime-0.014.tar.gz
-    provides:
-      Module::Runtime 0.014
-    requirements:
-      Module::Build 0
-      Test::More 0
-      perl 5.006
-      strict 0
-      warnings 0
   Mojolicious-6.02
     pathname: S/SR/SRI/Mojolicious-6.02.tar.gz
     provides:
@@ -347,57 +268,6 @@ DISTRIBUTIONS
       MIME::Base64 0
       Test::More 0.60_01
       perl 5.005
-  Sub-Exporter-Progressive-0.001011
-    pathname: F/FR/FREW/Sub-Exporter-Progressive-0.001011.tar.gz
-    provides:
-      Sub::Exporter::Progressive 0.001011
-    requirements:
-      ExtUtils::MakeMaker 0
-      Test::More 0.88
-  Sub-Name-0.12
-    pathname: E/ET/ETHER/Sub-Name-0.12.tar.gz
-    provides:
-      Sub::Name 0.12
-    requirements:
-      Exporter 5.57
-      ExtUtils::MakeMaker 0
-      XSLoader 0
-      strict 0
-      warnings 0
-  Test-Requires-0.08
-    pathname: T/TO/TOKUHIROM/Test-Requires-0.08.tar.gz
-    provides:
-      Test::Requires 0.08
-    requirements:
-      ExtUtils::MakeMaker 6.64
-      Test::Builder::Module 0
-      Test::More 0.61
-      perl 5.008_001
-  Try-Tiny-0.22
-    pathname: D/DO/DOY/Try-Tiny-0.22.tar.gz
-    provides:
-      Try::Tiny 0.22
-    requirements:
-      Carp 0
-      Exporter 5.57
-      ExtUtils::MakeMaker 6.30
-      constant 0
-      strict 0
-      warnings 0
-  Variable-Magic-0.56
-    pathname: V/VP/VPIT/Variable-Magic-0.56.tar.gz
-    provides:
-      Variable::Magic 0.56
-    requirements:
-      Carp 0
-      Config 0
-      Exporter 0
-      ExtUtils::MakeMaker 0
-      Test::More 0
-      XSLoader 0
-      base 0
-      lib 0
-      perl 5.008
   common-sense-3.73
     pathname: M/ML/MLEHMANN/common-sense-3.73.tar.gz
     provides:

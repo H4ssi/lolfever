@@ -19,15 +19,16 @@
 package LolFever;
 
 use Modern::Perl '2015';
+use feature 'signatures';
 
 use Mojolicious::Lite;
-use Method::Signatures::Simple;
 
 use Mojo::Path;
 
 use Digest;
 
 no warnings 'experimental::smartmatch';
+no warnings 'experimental::signatures';
 
 my $config = plugin 'Config';
 my $base = $config->{'base'} // '';
@@ -38,9 +39,7 @@ app->defaults( layout => 'layout' );
 app->ua->max_redirects(10);
 
 my @base_path = @{ Mojo::Path->new($base)->leading_slash(0) };
-app->hook(before_dispatch => sub {
-  my $c = shift;
-  
+app->hook(before_dispatch => sub ($c) {
   my @base = splice @{ $c->req->url->path->leading_slash(0) }, 0, scalar @base_path;
 
   $c->rendered(404) unless @base ~~ @base_path;
@@ -56,14 +55,14 @@ my %PARSE = ( mid => 'mid',
 
 my @ROLES = keys %PARSE;
 
-func parse_role( $role_string ) {
+sub parse_role( $role_string ) {
     for my $role (@ROLES) {
         return $role if $role_string =~ /$PARSE{$role}/xmsi;
     }
     return;
 }
 
-func write_db( $file, $data ) {
+sub write_db( $file, $data ) {
     open(my $f, '>', $file);
 
     for my $key ( sort keys %$data ) {
@@ -75,7 +74,7 @@ func write_db( $file, $data ) {
     close $f;
 }
 
-func read_db( $file ) {
+sub read_db( $file ) {
     open(my $f, '<', $file);
 
     my %data;
@@ -95,21 +94,21 @@ func read_db( $file ) {
     return \%data;
 }
 
-post("/championdb" => method {
-    $self->render_later;
-    $self->delay(
-        func ($d) {
-            $self->ua->get('http://www.lolking.net/champions' => $d->begin);
-            $self->ua->get('http://www.lolking.net/guides' => $d->begin);
-            $self->ua->get('http://www.lolpro.com' => $d->begin);
+post("/championdb" => sub ($c) {
+    $c->render_later;
+    $c->delay(
+        sub ($d) {
+            $c->ua->get('http://www.lolking.net/champions' => $d->begin);
+            $c->ua->get('http://www.lolking.net/guides' => $d->begin);
+            $c->ua->get('http://www.lolpro.com' => $d->begin);
         },
-        func ($d, $champs, $guides, $frees) {
+        sub ($d, $champs, $guides, $frees) {
             my $db;
             my $free;
             my @errors;
             
-            for my $c ( @{ $champs->res->dom->find('.champion-list tr') } ) {
-                my $a = $c->at('.champion-list-icon > a');
+            for my $champ ( @{ $champs->res->dom->find('.champion-list tr') } ) {
+                my $a = $champ->at('.champion-list-icon > a');
                 if( defined $a ) {
                     unless( $a->attr('href') =~ / ( [^\/]*? ) \z/xms ) {
                         push @errors, 'Could not parse champion name from: '.($a->attr('href'));
@@ -117,7 +116,7 @@ post("/championdb" => method {
                         my $name = $1;
                         $name = 'wukong' if $name eq 'monkeyking';
 
-                        my $role = $c->at('td:nth-last-of-type(2)');
+                        my $role = $champ->at('td:nth-last-of-type(2)');
                         unless( defined $role && defined $role->attr('data-sortval') ) {
                             push @errors, "No role found for champion $name";
                         } else {
@@ -133,12 +132,12 @@ post("/championdb" => method {
                 }
             }
 
-            for my $c ( @{ $guides->res->dom->find('#guides-champion-list > .big-champion-icon') } ) {
-                my $name = lc( $c->attr('data-name') =~ s/[^a-zA-Z]//xmsgr );
-                my @roles = map { $c->attr("data-meta$_") } @{['', 1..5]};
+            for my $champ ( @{ $guides->res->dom->find('#guides-champion-list > .big-champion-icon') } ) {
+                my $name = lc( $champ->attr('data-name') =~ s/[^a-zA-Z]//xmsgr );
+                my @roles = map { $champ->attr("data-meta$_") } @{['', 1..5]};
          
                 unless( exists $db->{$name} ) {
-                    push @errors, "No such champion: $name/".($c->{'name'});
+                    push @errors, "No such champion: $name/".($champ->{'name'});
                 } else {
                     for my $role (@roles) {
                         next unless defined $role;
@@ -155,8 +154,8 @@ post("/championdb" => method {
                 }
             }
 
-            for my $c ( @{ $frees->res->dom->find('li.game-champion') } ) {
-                my @classes = split /\s+/xms, $c->attr('class');
+            for my $champ ( @{ $frees->res->dom->find('li.game-champion') } ) {
+                my @classes = split /\s+/xms, $champ->attr('class');
 
                 my ($name_info) = grep { /\A game-champion-/xms && !/\A game-champion-tag-/xms } @classes;
 
@@ -179,12 +178,12 @@ post("/championdb" => method {
             write_db('champions.db', $db);
             write_db('free.db', $free);
 
-            $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
+            $c->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
         }
     );
 })->name('championdb');
 
-func manage_list( $file, $champion, $role, $listed ) {
+sub manage_list( $file, $champion, $role, $listed ) {
     my $list = read_db( $file );
 
     $list->{ $champion }->{ $role } = $listed;
@@ -192,69 +191,69 @@ func manage_list( $file, $champion, $role, $listed ) {
     write_db( $file, $list );
 }
 
-func manage_blacklist( $champion, $role, $listed ) {
+sub manage_blacklist( $champion, $role, $listed ) {
     manage_list( 'blacklist.db', $champion, $role, $listed );
 }
 
-func manage_whitelist( $champion, $role, $listed ) {
+sub manage_whitelist( $champion, $role, $listed ) {
     manage_list( 'whitelist.db', $champion, $role, $listed );
 }
 
-get( "/champion/:champion/:role/blacklist" => method {
-    manage_blacklist( $self->param('champion'), $self->param('role'), 1 );
+get( "/champion/:champion/:role/blacklist" => sub ($c) {
+    manage_blacklist( $c->param('champion'), $c->param('role'), 1 );
     
-    $self->redirect_to('championdb');
+    $c->redirect_to('championdb');
 })->name('blacklist');
 
-get( "/champion/:champion/:role/no_blacklist" => method {
-    manage_blacklist( $self->param('champion'), $self->param('role'), 0 );
+get( "/champion/:champion/:role/no_blacklist" => sub ($c) {
+    manage_blacklist( $c->param('champion'), $c->param('role'), 0 );
     
-    $self->redirect_to('championdb');
+    $c->redirect_to('championdb');
 })->name('no_blacklist');
 
-get( "/champion/:champion/:role/whitelist" => method {
-    manage_whitelist( $self->param('champion'), $self->param('role'), 1 );
+get( "/champion/:champion/:role/whitelist" => sub ($c) {
+    manage_whitelist( $c->param('champion'), $c->param('role'), 1 );
     
-    $self->redirect_to('championdb');
+    $c->redirect_to('championdb');
 })->name('whitelist');
 
-get( "/champion/:champion/:role/no_whitelist" => method {
-    manage_whitelist( $self->param('champion'), $self->param('role'), 0 );
+get( "/champion/:champion/:role/no_whitelist" => sub ($c) {
+    manage_whitelist( $c->param('champion'), $c->param('role'), 0 );
     
-    $self->redirect_to('championdb');
+    $c->redirect_to('championdb');
 })->name('no_whitelist');
 
-get "/championdb" => method {
+get "/championdb" => sub ($c) {
     my $db = read_db('champions.db');
     my $free = read_db('free.db');
 
-    $self->render( 'championdb', errors => undef, db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
+    $c->render( 'championdb', errors => undef, db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
 };
 
-get("/user/:name" => method {
-    my $name = $self->param('name');
+get("/user/:name" => sub ($c) {
+    my $name = $c->param('name');
     unless( defined $name && $name =~ /\w/xms && -f "$name.db" ) {
-        return $self->render( text => "No such user: $name" );
+        return $c->render( text => "No such user: $name" );
     }
 
     my $data = read_db("$name.db");
     my $champions = read_db('champions.db');
     my @names = sort ( keys %$champions );
 
-    $self->render($self->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw => !!$data->{'pwhash'}, mode => 'profile' );
+    $c->render($c->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw => !!$data->{'pwhash'}, mode => 'profile' );
 })->name('user');
 
-post "/user/:name" => method {
-    my $name = $self->param('name');
+post "/user/:name" => sub ($c) {
+    my $name = $c->param('name');
 
     unless( defined $name && $name =~ /\w/xms && -f "$name.db" ) {
-        return $self->render( text => "No such user: $name", user => $name, mode => 'profile' );
+        return $c->render( text => "No such user: $name", user => $name, mode => 'profile' );
     }
 
     my $data = read_db("$name.db");
     
     unless( $data->{'pw'} || $data->{'pwhash'} ) {
-        return $self->render( text => "User deactivated: $name", user => $name, mode => 'profile' );
+        return $c->render( text => "User deactivated: $name", user => $name, mode => 'profile' );
     }
 
     my $champions = read_db('champions.db');
@@ -271,50 +270,50 @@ post "/user/:name" => method {
         $auth = $d->clone->add( $plain )->b64digest;
     }
 
-    my $given = $d->clone->add( $self->param('current_pw') )->b64digest;
+    my $given = $d->clone->add( $c->param('current_pw') )->b64digest;
   
     unless( $auth eq $given ) {
-        return $self->render( text => "invalid pw", user => $name, mode => 'profile' );
+        return $c->render( text => "invalid pw", user => $name, mode => 'profile' );
     }
 
-    if( $self->param('new_pw_1') ) {
-        unless( $self->param('new_pw_1') eq $self->param('new_pw_2') ) {
-            return $self->redner( text => "new pws did not match" );
+    if( $c->param('new_pw_1') ) {
+        unless( $c->param('new_pw_1') eq $c->param('new_pw_2') ) {
+            return $c->redner( text => "new pws did not match" );
         } else {
             $data->{'pwhash'} = {} unless defined $data->{'pwhash'};
-            $data->{'pwhash'}->{ $d->clone->add( $self->param('new_pw_1') )->b64digest } = 1;
+            $data->{'pwhash'}->{ $d->clone->add( $c->param('new_pw_1') )->b64digest } = 1;
         }
     }
 
     $data->{'can'} = {} unless defined $data->{'can'};
     for my $role (@ROLES) {
-        $data->{'can'}->{$role} = !!$self->param("can:$role");
+        $data->{'can'}->{$role} = !!$c->param("can:$role");
     }
 
     $data->{'owns'} = {} unless defined $data->{'owns'};
     for my $champ (@names) {
-        $data->{'owns'}->{$champ} = !! $self->param("owns:$champ");
+        $data->{'owns'}->{$champ} = !! $c->param("owns:$champ");
     }
 
     write_db("$name.db", $data);
 
-    return $self->redirect_to;
+    return $c->redirect_to;
 };
 
-method roll_form {
+sub roll_form($c) {
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
     my $db = read_db('champions.db');
 
     my @champions = keys( %$db );
 
-    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
+    return $c->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
 };
 
 get "" => \&roll_form;
 get "/troll" => \&roll_form;
 
-func select_random(@values) {
+sub select_random( @values ) {
     my $len = scalar  @values;
     my $ran = int(rand($len));
 
@@ -323,7 +322,7 @@ func select_random(@values) {
     return @values[$ran, @other];
 }
 
-func all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
+sub all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
     return map {
         my $champion = $_;
         if ( ( $user->{'owns'}->{$champion} || $champion ~~ @$free ) && !( $champion ~~ @$tabu_champions ) ) {
@@ -337,7 +336,7 @@ func all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
     } keys %$db;
 }
 
-func combine_blacklist_whitelist( $db, $blacklist, $whitelist ) {
+sub combine_blacklist_whitelist( $db, $blacklist, $whitelist ) {
     return { map { 
         my $champ = $_;
         ( $champ => { map {
@@ -349,7 +348,7 @@ func combine_blacklist_whitelist( $db, $blacklist, $whitelist ) {
     } keys %$db };
 }
 
-func trollify( $db ) {
+sub trollify( $db ) {
     my $troll_db;
 
     for my $champ ( keys %$db ) {
@@ -364,10 +363,10 @@ func trollify( $db ) {
     return $troll_db;
 }
 
-method roll( $trolling ) {
-    my @players = grep { $_ } @{ $self->every_param('players') };
-    my @woroles = grep { $_ } @{ $self->every_param('woroles') };
-    my @wochampions = grep { $_ } @{ $self->every_param('wochampions') };
+sub roll( $c, $trolling = '' ) {
+    my @players = grep { $_ } @{ $c->every_param('players') };
+    my @woroles = grep { $_ } @{ $c->every_param('woroles') };
+    my @wochampions = grep { $_ } @{ $c->every_param('wochampions') };
     
     my %player_specs = map { ( $_ => read_db("$_.db") ) } @players;
 
@@ -406,20 +405,20 @@ method roll( $trolling ) {
 
     my @champions = keys( %$db );
 
-    return $self->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
-                           roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $self->dumper(\@fails) : undef), mode => 'roll' );
+    return $c->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
+                           roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $c->dumper(\@fails) : undef), mode => 'roll' );
 }
 
-get "/roll" => method {
-    return $self->redirect_to('home');
+get "/roll" => sub ($c) {
+    return $c->redirect_to('home');
 };
 
-post("" => method {
-    return roll($self); # you cannot call the method directly, use function notation instead
+post("" => sub ($c) {
+    return roll($c);
 })->name('home');
 
-post("/troll" => method {
-    return roll($self, 'trolling');
+post("/troll" => sub ($c) {
+    return roll($c, 'trolling');
 })->name('trollroll');
 
 app->start;
@@ -505,11 +504,11 @@ __DATA__
 
 <div class="form-group">
     <label>Players</label>
-    % for my $u (@$users) {
+    % for my $user (@$users) {
         <div class="checkbox">
             <label>
-                %= input_tag "players", type => 'checkbox', value => $u, $u ~~ @$players ? ( checked => 'checked' ) : ()
-                %= link_to $u => 'user' => { name => $u }
+                %= input_tag "players", type => 'checkbox', value => $user, $user ~~ @$players ? ( checked => 'checked' ) : ()
+                %= link_to $user => 'user' => { name => $user }
             </label>
         </div>
     % }
@@ -517,11 +516,11 @@ __DATA__
 
 <div class="form-group">
     <label>Excluded roles</label>
-    % for my $r (@$roles) {
+    % for my $role (@$roles) {
         <div class="checkbox">
             <label>
-                %= input_tag "woroles", type => 'checkbox', value => $r, $r ~~ @$woroles ? ( checked => 'checked' ) : ()
-                %= $r
+                %= input_tag "woroles", type => 'checkbox', value => $role, $role ~~ @$woroles ? ( checked => 'checked' ) : ()
+                %= $role
             </label>
         </div>
     % }
@@ -532,12 +531,12 @@ __DATA__
     % for my $i (0..3) {
         <select name="wochampions" class="form-control">
             <option value=""></option>
-            % for my $c (@$champions) {
-                <option value="<%= $c %>"
-                    % if( $c eq ($wochampions->[$i] // '') ) {
+            % for my $champ (@$champions) {
+                <option value="<%= $champ %>"
+                    % if( $champ eq ($wochampions->[$i] // '') ) {
                         selected="selected"
                     % }
-                ><%= $c %></option>
+                ><%= $champ %></option>
             % }
         </select>
     % }
@@ -557,18 +556,18 @@ __DATA__
 
 <h3>Possible roles</h3>
 <ul class="list-inline">
-% for my $c (@$roles) {
-    % if( $can->{$c} ) {
-        <li><%= $c %></li>
+% for my $role (@$roles) {
+    % if( $can->{$role} ) {
+        <li><%= $role %></li>
     % }
 % }
 </ul>
 
 <h3>Owned champions</h3>
 <ul class="list-inline">
-% for my $n (@$names) {
-    % if( $owns->{$n} ) {
-        <li><%= $n %></li>
+% for my $champ (@$names) {
+    % if( $owns->{$champ} ) {
+        <li><%= $champ %></li>
     % }
 % }
 </ul>
@@ -583,11 +582,11 @@ __DATA__
 <div class="form-group">
     <label>Possible roles</label>
 
-    % for my $c (@$roles) {
+    % for my $role (@$roles) {
         <div class="checkbox">    
             <label>
-                %= input_tag "can:$c", type => 'checkbox', value => 1, $can->{$c} ? ( checked => 'checked' ) : ()
-                <%= $c %>
+                %= input_tag "can:$role", type => 'checkbox', value => 1, $can->{$role} ? ( checked => 'checked' ) : ()
+                <%= $role %>
             </label>
         </div>
     % }
@@ -596,11 +595,11 @@ __DATA__
 <div class="form-group">
     <label>Owned champions</label>
 
-    % for my $n (@$names) {
+    % for my $champ (@$names) {
         <div class="checkbox">    
             <label>
-                %= input_tag "owns:$n", type => 'checkbox', value => 1, $owns->{$n} ? ( checked => 'checked' ) : ()
-                <%= $n %>
+                %= input_tag "owns:$champ", type => 'checkbox', value => 1, $owns->{$champ} ? ( checked => 'checked' ) : ()
+                <%= $champ %>
             </label>
         </div>
     % }
@@ -649,12 +648,11 @@ __DATA__
     (You need to do this once per free champion rotation)
 % end
 
-
 % if( $updated ) {
     % if( defined $errors ) {
         <div class="alert alert-danger" role="alert">
-            % for my $e (@$errors) {
-                <p><%= $e %></p>
+            % for my $error (@$errors) {
+                <p><%= $error %></p>
             % }
         </div>
     % } else {
@@ -665,30 +663,30 @@ __DATA__
 % }
 
 <table class="table table-hover table-condensed champion-table"><tbody>
-    % for my $c (sort keys %$db) {
+    % for my $champ (sort keys %$db) {
         <tr>
             <th> 
-                <%= $c %>
-                % if( $free->{$c} ) {
+                <%= $champ %>
+                % if( $free->{$champ} ) {
                     <span class="label label-info">free</span>
                 % }
             </th>
-            % for my $r ( @$roles ) {
+            % for my $role ( @$roles ) {
                 <td>
-                    % if( $db->{$c}->{$r} ) {
-                        %= link_to $blacklist->{$c}->{$r} ? 'no_blacklist' : 'blacklist' => { champion => $c, role => $r } => begin
-                            % if( $blacklist->{$c}->{$r} ) {
-                                <s><%= $r %></s>
+                    % if( $db->{$champ}->{$role} ) {
+                        %= link_to $blacklist->{$champ}->{$role} ? 'no_blacklist' : 'blacklist' => { champion => $champ, role => $role } => begin
+                            % if( $blacklist->{$champ}->{$role} ) {
+                                <s><%= $role %></s>
                             % } else {
-                                <%= $r %>
+                                <%= $role %>
                             % }
                         % end
                     % } else {
-                        %= link_to $whitelist->{$c}->{$r} ? 'no_whitelist' : 'whitelist' => { champion => $c, role => $r } => begin
-                            % if( $whitelist->{$c}->{$r} ) {
-                                <u><%= $r %></u>
+                        %= link_to $whitelist->{$champ}->{$role} ? 'no_whitelist' : 'whitelist' => { champion => $champ, role => $role } => begin
+                            % if( $whitelist->{$champ}->{$role} ) {
+                                <u><%= $role %></u>
                             % } else {
-                                <span class="non-role"><%= $r %></span>
+                                <span class="non-role"><%= $role %></span>
                             % }
                         % end
                     % }
