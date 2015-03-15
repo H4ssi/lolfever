@@ -34,7 +34,8 @@ no warnings 'experimental::smartmatch';
 my $config = plugin 'Config';
 my $base = $config->{'base'} // '';
 
-app->secrets(['HaShien233zyyY?', 'asdfp421c4 1r_']); # do not edit last one (used for pw salt)
+app->secrets(['HaShien233zyyY?']); 
+my $salt = 'asdfp421c4 1r_';
 app->defaults( layout => 'layout' );
 app->ua->max_redirects(10);
 
@@ -275,7 +276,7 @@ post "/user/:name" => method {
     my $champions = read_db('champions.db');
     my @names = sort ( keys %$champions );
 
-    my $d = Digest->new('SHA-512')->add( app->secrets->[-1] );
+    my $d = Digest->new('SHA-512')->add( $salt );
     
     my $auth;
 
