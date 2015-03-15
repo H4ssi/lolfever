@@ -25,7 +25,6 @@ use Method::Signatures::Simple;
 
 use Mojo::Path;
 
-use URI;
 use Web::Scraper;
 use Data::Dumper;
 
@@ -38,6 +37,7 @@ my $base = $config->{'base'} // '';
 
 app->secrets(['HaShien233zyyY?', 'asdfp421c4 1r_']); # do not edit last one (used for pw salt)
 app->defaults( layout => 'layout' );
+app->ua->max_redirects(10);
 
 my @base_path = @{ Mojo::Path->new($base)->leading_slash(0) };
 app->hook(before_dispatch => sub {
@@ -98,111 +98,106 @@ func read_db( $file ) {
 }
 
 post("/championdb" => method {
-    my $champion_list_thread = sub {
-        my $champion_list_scraper = scraper {
-            process '.champion-list tr', 'champions[]' => scraper {
-                # this custom process is used to prevent auto cast to URI
-                # since this cannot be shared accross threads, its easier
-                # to just take a string of the @href attribute
-                process '.champion-list-icon > a', href => sub { return shift->attr('href'); };
-                process '//td[last()-1]', role => '@data-sortval';
-            };
-        };
-        return $champion_list_scraper->scrape( URI->new('http://www.lolking.net/champions') ); 
-    };
+    $self->render_later;
+    $self->delay(
+        func ($d) {
+            $self->ua->get('http://www.lolking.net/champions' => $d->begin);
+            $self->ua->get('http://www.lolking.net/guides' => $d->begin);
+            $self->ua->get('http://www.lolpro.com' => $d->begin);
+        },
+        func ($d, $champs, $guides, $frees) {
+            my $champions = (scraper {
+                process '.champion-list tr', 'champions[]' => scraper {
+                    # this custom process is used to prevent auto cast to URI
+                    # since this cannot be shared accross threads, its easier
+                    # to just take a string of the @href attribute
+                    process '.champion-list-icon > a', href => sub { return shift->attr('href'); };
+                    process '//td[last()-1]', role => '@data-sortval';
+                };
+            })->scrape($champs->res->body);
 
-    my $champion_guide_thread = sub {
-        my $champion_guide_scraper = scraper {
-            process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', meta0 => '@data-meta', map { ( "meta$_" => "\@data-meta$_" ) } (1..5) };
-        };
-        return $champion_guide_scraper->scrape( URI->new('http://www.lolking.net/guides') );
-    };
+            my $champion_guides = (scraper {
+                process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', meta0 => '@data-meta', map { ( "meta$_" => "\@data-meta$_" ) } (1..5) };
+            })->scrape($guides->res->body);
 
-    my $free_rotation_thread = sub {
-        my $free_rotation_scraper = scraper {
-            process 'li.game-champion', 'champions[]' => { class => '@class' };
-        };
-        return $free_rotation_scraper->scrape( URI->new('http://www.lolpro.com') );
-    };
+            my $free_rotation = (scraper {
+                process 'li.game-champion', 'champions[]' => { class => '@class' };
+            })->scrape($frees->res->body);
 
-    my $db;
-    my $free;
-    my @errors;
-    
-    my $champions = $champion_list_thread->();
-
-    for my $c ( @{ $champions->{'champions'} } ) {
-        if( defined $c->{'href'} ) {
-            unless( $c->{'href'} =~ / ( [^\/]*? ) \z/xms ) {
-                push @errors, 'Could not parse champion name from: '.($c->{'href'});
-            } else {
-                my $name = $1;
-                $name = 'wukong' if $name eq 'monkeyking';
-
-                unless( $c->{'role'} ) {
-                    push @errors, "No role found for champion $name";
-                } else {
-                    my $r = parse_role($c->{'role'});
-                    
-                    unless( defined $r ) {
-                        push @errors, "Do not know what role this is: '".($c->{'role'})."' (champion is '$name')";
+            my $db;
+            my $free;
+            my @errors;
+            
+            for my $c ( @{ $champions->{'champions'} } ) {
+                if( defined $c->{'href'} ) {
+                    unless( $c->{'href'} =~ / ( [^\/]*? ) \z/xms ) {
+                        push @errors, 'Could not parse champion name from: '.($c->{'href'});
                     } else {
-                        $db->{$name}->{$r} = 1;
+                        my $name = $1;
+                        $name = 'wukong' if $name eq 'monkeyking';
+
+                        unless( $c->{'role'} ) {
+                            push @errors, "No role found for champion $name";
+                        } else {
+                            my $r = parse_role($c->{'role'});
+                            
+                            unless( defined $r ) {
+                                push @errors, "Do not know what role this is: '".($c->{'role'})."' (champion is '$name')";
+                            } else {
+                                $db->{$name}->{$r} = 1;
+                            }
+                        }
+                    }
+                }
+                
+            }
+
+            for my $c ( @{ $champion_guides->{'champions'} } ) {
+                my @roles = grep { defined && /\w/xms } @$c{ grep { / \A meta/xms } keys %$c };
+                (my $name = $c->{'name'}) =~ s/[^a-zA-Z]//xmsg;
+         
+                unless( exists $db->{$name} ) {
+                    push @errors, "No such champion: $name/".($c->{'name'});
+                } else {
+                    for my $role (@roles) {
+                        my $r = parse_role($role);
+
+                        unless( $r ) {
+                            push @errors, "Do not know what role this is again: '$role' (champion is '$name')";
+                        } else {
+                            $db->{$name}->{$r} = 1;
+                        }
                     }
                 }
             }
-        }
-        
-    }
 
-    my $champion_guides = $champion_guide_thread->();
+            for my $c ( @{ $free_rotation->{'champions'} } ) {
+                my @classes = split /\s+/xms, $c->{'class'};
 
-    for my $c ( @{ $champion_guides->{'champions'} } ) {
-        my @roles = grep { defined && /\w/xms } @$c{ grep { / \A meta/xms } keys %$c };
-        (my $name = $c->{'name'}) =~ s/[^a-zA-Z]//xmsg;
- 
-        unless( exists $db->{$name} ) {
-            push @errors, "No such champion: $name/".($c->{'name'});
-        } else {
-            for my $role (@roles) {
-                my $r = parse_role($role);
+                my ($name_info) = grep { /\A game-champion-/xms && !/\A game-champion-tag-/xms } @classes;
 
-                unless( $r ) {
-                    push @errors, "Do not know what role this is again: '$role' (champion is '$name')";
-                } else {
-                    $db->{$name}->{$r} = 1;
+                if( $name_info =~ /\A game-champion-(.*) \z/xms ) {
+                    (my $name = $1) =~ s/[^a-z]//xmsg;
+
+                    unless( exists $db->{$name} ) {
+                        push @errors, "What is this for a champion: $name?";
+                    } else {
+                        $free->{$name}->{'free'}  = 1 if 'game-champion-tag-free'     ~~ @classes;
+                        $db->{$name}->{'top'}     = 1 if 'game-champion-tag-top-lane' ~~ @classes;
+                        $db->{$name}->{'mid'}     = 1 if 'game-champion-tag-mid-lane' ~~ @classes;
+                        $db->{$name}->{'adcarry'} = 1 if 'game-champion-tag-bot-lane' ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
+                        $db->{$name}->{'support'} = 1 if 'game-champion-tag-support'  ~~ @classes;
+                        $db->{$name}->{'jungle'}  = 1 if 'game-champion-tag-jungler'  ~~ @classes;
+                    }
                 }
             }
+
+            write_db('champions.db', $db);
+            write_db('free.db', $free);
+
+            $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
         }
-    }
-
-    my $free_rotation = $free_rotation_thread->();
-
-    for my $c ( @{ $free_rotation->{'champions'} } ) {
-        my @classes = split /\s+/xms, $c->{'class'};
-
-        my ($name_info) = grep { /\A game-champion-/xms && !/\A game-champion-tag-/xms } @classes;
-
-        if( $name_info =~ /\A game-champion-(.*) \z/xms ) {
-            (my $name = $1) =~ s/[^a-z]//xmsg;
-
-            unless( exists $db->{$name} ) {
-                push @errors, "What is this for a champion: $name?";
-            } else {
-                $free->{$name}->{'free'}  = 1 if 'game-champion-tag-free'     ~~ @classes;
-                $db->{$name}->{'top'}     = 1 if 'game-champion-tag-top-lane' ~~ @classes;
-                $db->{$name}->{'mid'}     = 1 if 'game-champion-tag-mid-lane' ~~ @classes;
-                $db->{$name}->{'adcarry'} = 1 if 'game-champion-tag-bot-lane' ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
-                $db->{$name}->{'support'} = 1 if 'game-champion-tag-support'  ~~ @classes;
-                $db->{$name}->{'jungle'}  = 1 if 'game-champion-tag-jungler'  ~~ @classes;
-            }
-        }
-    }
-
-    write_db('champions.db', $db);
-    write_db('free.db', $free);
-
-    $self->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
+    );
 })->name('championdb');
 
 func manage_list( $file, $champion, $role, $listed ) {

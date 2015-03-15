@@ -64,6 +64,14 @@ DISTRIBUTIONS
       Test::More 0.88
       Test::Requires 0
       perl 5.008001
+  EV-4.18
+    pathname: M/ML/MLEHMANN/EV-4.18.tar.gz
+    provides:
+      EV 4.18
+      EV::MakeMaker undef
+    requirements:
+      ExtUtils::MakeMaker 0
+      common::sense 0
   Encode-Locale-1.04
     pathname: G/GA/GAAS/Encode-Locale-1.04.tar.gz
     provides:
@@ -286,6 +294,37 @@ DISTRIBUTIONS
       Encode 2.10
       Exporter 5.57
       ExtUtils::MakeMaker 6.30
+  IO-Socket-SSL-2.012
+    pathname: S/SU/SULLR/IO-Socket-SSL-2.012.tar.gz
+    provides:
+      IO::Socket::SSL 2.012
+      IO::Socket::SSL::Intercept 1.93
+      IO::Socket::SSL::OCSP_Cache 2.012
+      IO::Socket::SSL::OCSP_Resolver 2.012
+      IO::Socket::SSL::PublicSuffix undef
+      IO::Socket::SSL::SSL_Context 2.012
+      IO::Socket::SSL::SSL_HANDLE 2.012
+      IO::Socket::SSL::Session_Cache 2.012
+      IO::Socket::SSL::Utils 0.031
+    requirements:
+      ExtUtils::MakeMaker 0
+      Mozilla::CA 0
+      Net::SSLeay 1.46
+      Scalar::Util 0
+  IO-Socket-Socks-0.66
+    pathname: O/OL/OLEG/IO-Socket-Socks-0.66.tar.gz
+    provides:
+      IO::Socket::Socks 0.66
+      IO::Socket::Socks::Debug 0.66
+      IO::Socket::Socks::Error 0.66
+      IO::Socket::Socks::ReadOnlyVar 0.66
+      IO::Socket::Socks::SocketClassVar 0.66
+    requirements:
+      ExtUtils::MakeMaker 6.52
+      IO::Select 0
+      Socket 1.94
+      Test::More 0.88
+      constant 1.03
   LWP-MediaTypes-6.02
     pathname: G/GA/GAAS/LWP-MediaTypes-6.02.tar.gz
     provides:
@@ -526,6 +565,22 @@ DISTRIBUTIONS
       IO::Socket::IP 0.26
       Pod::Simple 3.09
       Time::Local 1.2
+  Mozilla-CA-20141217
+    pathname: A/AB/ABH/Mozilla-CA-20141217.tar.gz
+    provides:
+      Mozilla::CA 20141217
+    requirements:
+      ExtUtils::MakeMaker 0
+      Test 0
+      perl 5.006
+  Net-DNS-Native-0.15
+    pathname: O/OL/OLEG/Net-DNS-Native-0.15.tar.gz
+    provides:
+      Net::DNS::Native 0.15
+    requirements:
+      ExtUtils::MakeMaker 0
+      Socket 1.94
+      Test::More 0.88
   Net-HTTP-6.07
     pathname: M/MS/MSCHILLI/Net-HTTP-6.07.tar.gz
     provides:
@@ -541,6 +596,16 @@ DISTRIBUTIONS
       IO::Socket::INET 0
       URI 0
       perl 5.006002
+  Net-SSLeay-1.68
+    pathname: M/MI/MIKEM/Net-SSLeay-1.68.tar.gz
+    provides:
+      Net::SSLeay 1.68
+      Net::SSLeay::Handle 0.61
+    requirements:
+      ExtUtils::MakeMaker 6.36
+      MIME::Base64 0
+      Test::More 0.60_01
+      perl 5.005
   Spiffy-0.46
     pathname: I/IN/INGY/Spiffy-0.46.tar.gz
     provides:
@@ -777,6 +842,12 @@ DISTRIBUTIONS
     requirements:
       ExtUtils::MakeMaker 0
       perl 5.008001
+  common-sense-3.73
+    pathname: M/ML/MLEHMANN/common-sense-3.73.tar.gz
+    provides:
+      common::sense 3.73
+    requirements:
+      ExtUtils::MakeMaker 0
   libwww-perl-6.13
     pathname: E/ET/ETHER/libwww-perl-6.13.tar.gz
     provides:
