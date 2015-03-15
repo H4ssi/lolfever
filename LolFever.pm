@@ -106,10 +106,6 @@ post("/championdb" => method {
             $self->ua->get('http://www.lolpro.com' => $d->begin);
         },
         func ($d, $champs, $guides, $frees) {
-            my $champion_guides = (scraper {
-                process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', meta0 => '@data-meta', map { ( "meta$_" => "\@data-meta$_" ) } (1..5) };
-            })->scrape($guides->res->body);
-
             my $free_rotation = (scraper {
                 process 'li.game-champion', 'champions[]' => { class => '@class' };
             })->scrape($frees->res->body);
@@ -143,14 +139,17 @@ post("/championdb" => method {
                 }
             }
 
-            for my $c ( @{ $champion_guides->{'champions'} } ) {
-                my @roles = grep { defined && /\w/xms } @$c{ grep { / \A meta/xms } keys %$c };
-                (my $name = $c->{'name'}) =~ s/[^a-zA-Z]//xmsg;
+            for my $c ( @{ $guides->res->dom->find('#guides-champion-list > .big-champion-icon') } ) {
+                my $name = lc( $c->attr('data-name') =~ s/[^a-zA-Z]//xmsgr );
+                my @roles = map { $c->attr("data-meta$_") } @{['', 1..5]};
          
                 unless( exists $db->{$name} ) {
                     push @errors, "No such champion: $name/".($c->{'name'});
                 } else {
                     for my $role (@roles) {
+                        next unless defined $role;
+                        next unless $role =~ /\w/xms;
+
                         my $r = parse_role($role);
 
                         unless( $r ) {
