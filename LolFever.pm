@@ -106,16 +106,6 @@ post("/championdb" => method {
             $self->ua->get('http://www.lolpro.com' => $d->begin);
         },
         func ($d, $champs, $guides, $frees) {
-            my $champions = (scraper {
-                process '.champion-list tr', 'champions[]' => scraper {
-                    # this custom process is used to prevent auto cast to URI
-                    # since this cannot be shared accross threads, its easier
-                    # to just take a string of the @href attribute
-                    process '.champion-list-icon > a', href => sub { return shift->attr('href'); };
-                    process '//td[last()-1]', role => '@data-sortval';
-                };
-            })->scrape($champs->res->body);
-
             my $champion_guides = (scraper {
                 process "#guides-champion-list > .big-champion-icon", 'champions[]' => { name => '@data-name', meta0 => '@data-meta', map { ( "meta$_" => "\@data-meta$_" ) } (1..5) };
             })->scrape($guides->res->body);
@@ -128,28 +118,29 @@ post("/championdb" => method {
             my $free;
             my @errors;
             
-            for my $c ( @{ $champions->{'champions'} } ) {
-                if( defined $c->{'href'} ) {
-                    unless( $c->{'href'} =~ / ( [^\/]*? ) \z/xms ) {
-                        push @errors, 'Could not parse champion name from: '.($c->{'href'});
+            for my $c ( @{ $champs->res->dom->find('.champion-list tr') } ) {
+                my $a = $c->at('.champion-list-icon > a');
+                if( defined $a ) {
+                    unless( $a->attr('href') =~ / ( [^\/]*? ) \z/xms ) {
+                        push @errors, 'Could not parse champion name from: '.($a->attr('href'));
                     } else {
                         my $name = $1;
                         $name = 'wukong' if $name eq 'monkeyking';
 
-                        unless( $c->{'role'} ) {
+                        my $role = $c->at('td:nth-last-of-type(2)');
+                        unless( defined $role && defined $role->attr('data-sortval') ) {
                             push @errors, "No role found for champion $name";
                         } else {
-                            my $r = parse_role($c->{'role'});
+                            my $r = parse_role($role->attr('data-sortval'));
                             
                             unless( defined $r ) {
-                                push @errors, "Do not know what role this is: '".($c->{'role'})."' (champion is '$name')";
+                                push @errors, "Do not know what role this is: '".($role->attr('data-sortval'))."' (champion is '$name')";
                             } else {
                                 $db->{$name}->{$r} = 1;
                             }
                         }
                     }
                 }
-                
             }
 
             for my $c ( @{ $champion_guides->{'champions'} } ) {
