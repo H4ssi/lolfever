@@ -82,6 +82,8 @@ sub read_db( $file ) {
     while(my $l = <$f>) {
         chomp $l;
 
+        next if $l =~ /\A \s* \z/xms;
+
         my ($key,$val) = split /:/xms, $l, 2;
 
         $data{$key} = {} unless defined $data{$key};
