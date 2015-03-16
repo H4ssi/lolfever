@@ -425,6 +425,7 @@ app->start;
 __DATA__
 
 @@ layouts/layout.html.ep
+<!DOCTYPE html>
 <html>
 <!--
   - LoLfever - random meta ftw
@@ -643,8 +644,10 @@ __DATA__
 @@ championdb.html.ep
 
 %= form_for url_for() => (method => 'POST') => begin
-    <button type="submit" class="btn">Update DB from the Interwebs</button>
-    (You need to do this once per free champion rotation)
+    <div class="form-group">
+        <button type="submit" class="btn btn-default">Update DB from the Interwebs</button>
+        <p class="help-block">You need to do this once per free champion rotation</p>
+    </div>
 % end
 
 % if( $updated ) {
