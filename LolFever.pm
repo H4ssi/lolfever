@@ -258,9 +258,6 @@ post "/user/:name" => sub ($c) {
         return $c->render( text => "User deactivated: $name", user => $name, mode => 'profile' );
     }
 
-    my $champions = read_db('champions.db');
-    my @names = sort ( keys %$champions );
-
     my $d = Digest->new('SHA-512')->add( $salt );
     
     my $auth;
@@ -275,26 +272,27 @@ post "/user/:name" => sub ($c) {
     my $given = $d->clone->add( $c->param('current_pw') )->b64digest;
   
     unless( $auth eq $given ) {
-        return $c->render( text => "invalid pw", user => $name, mode => 'profile' );
+        return $c->render( text => 'invalid pw', user => $name, mode => 'profile' );
+    }
+
+    unless( $data->{'pwhash'} || $c->param('new_pw_1') ) {
+        return $c->render( text => 'must change pw', user => $name, mode => 'profile' );
     }
 
     if( $c->param('new_pw_1') ) {
         unless( $c->param('new_pw_1') eq $c->param('new_pw_2') ) {
-            return $c->redner( text => "new pws did not match" );
+            return $c->render( text => 'new pws did not match', user => $name, mode => 'profile' );
         } else {
             $data->{'pwhash'} = { $d->clone->add( $c->param('new_pw_1') )->b64digest => 1 };
         }
     }
+    
+    $data->{'can'} = { map { $_ => !!$c->param("can:$_") } @ROLES };
 
-    $data->{'can'} = {} unless defined $data->{'can'};
-    for my $role (@ROLES) {
-        $data->{'can'}->{$role} = !!$c->param("can:$role");
-    }
+    my $champions = read_db('champions.db');
+    my @names = keys %$champions;
 
-    $data->{'owns'} = {} unless defined $data->{'owns'};
-    for my $champ (@names) {
-        $data->{'owns'}->{$champ} = !! $c->param("owns:$champ");
-    }
+    $data->{'owns'} = { map { $_ => !!$c->param("owns:$_") } @names };
 
     write_db("$name.db", $data);
 
