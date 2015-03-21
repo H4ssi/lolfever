@@ -27,11 +27,14 @@ use Mojo::Path;
 
 use Digest;
 
+use feature 'postderef';
+no warnings 'experimental::postderef';
 no warnings 'experimental::smartmatch';
 no warnings 'experimental::signatures';
 
 my $config = plugin 'Config';
 my $base = $config->{'base'} // '';
+my $lol_api_key = $config->{'lol_api_key'};
 
 app->secrets(['HaShien233zyyY?']); 
 my $salt = 'asdfp421c4 1r_';
@@ -100,16 +103,27 @@ post("/championdb" => sub ($c) {
     $c->render_later;
     $c->delay(
         sub ($d) {
+            $c->ua->get("https://euw.api.pvp.net/api/lol/euw/v1.2/champion?api_key=$lol_api_key" => $d->begin);
+            $c->ua->get("https://global.api.pvp.net/api/lol/static-data/euw/v1.2/champion?dataById=true&api_key=$lol_api_key" => $d->begin);
             $c->ua->get('http://www.lolking.net/champions' => $d->begin);
             $c->ua->get('http://www.lolking.net/guides' => $d->begin);
             $c->ua->get('http://www.lolpro.com' => $d->begin);
         },
-        sub ($d, $champs, $guides, $frees) {
-            my $db;
-            my $free;
+        sub ($d, $champions_tx, $static_tx, $champs_tx, $guides_tx, $roles_tx) {
             my @errors;
-            
-            for my $champ ( @{ $champs->res->dom->find('.champion-list tr') } ) {
+
+            my $champions = $champions_tx->res->json->{'champions'};
+            my $static = $static_tx->res->json->{'data'};
+
+            my $db = { map { (lc $static->{$_->{id}}->{key}) => {} } @$champions };
+            my $free = { map { (lc $static->{$_->{id}}->{key}) => { free => 1 } } (grep { $_->{freeToPlay} } @$champions) }; 
+
+            $db->{wukong} = $db->{monkeyking};
+            delete $db->{monkeyking};
+            $free->{wukong} = $free->{monkeyking};
+            delete $db->{monkeyking};
+
+            for my $champ ( $champs_tx->res->dom->find('.champion-list tr')->@* ) {
                 my $a = $champ->at('.champion-list-icon > a');
                 if( defined $a ) {
                     unless( $a->attr('href') =~ / ( [^\/]*? ) \z/xms ) {
@@ -118,23 +132,27 @@ post("/championdb" => sub ($c) {
                         my $name = $1;
                         $name = 'wukong' if $name eq 'monkeyking';
 
-                        my $role = $champ->at('td:nth-last-of-type(2)');
-                        unless( defined $role && defined $role->attr('data-sortval') ) {
-                            push @errors, "No role found for champion $name";
+                        unless( exists $db->{$name} ) {
+                            push @errors, "What is this champion: $name";
                         } else {
-                            my $r = parse_role($role->attr('data-sortval'));
-                            
-                            unless( defined $r ) {
-                                push @errors, "Do not know what role this is: '".($role->attr('data-sortval'))."' (champion is '$name')";
+                            my $role = $champ->at('td:nth-last-of-type(2)');
+                            unless( defined $role && defined $role->attr('data-sortval') ) {
+                                push @errors, "No role found for champion $name";
                             } else {
-                                $db->{$name}->{$r} = 1;
+                                my $r = parse_role($role->attr('data-sortval'));
+                                
+                                unless( defined $r ) {
+                                    push @errors, "Do not know what role this is: '".($role->attr('data-sortval'))."' (champion is '$name')";
+                                } else {
+                                    $db->{$name}->{$r} = 1;
+                                }
                             }
                         }
                     }
                 }
             }
 
-            for my $champ ( @{ $guides->res->dom->find('#guides-champion-list > .big-champion-icon') } ) {
+            for my $champ ( $guides_tx->res->dom->find('#guides-champion-list > .big-champion-icon')->@* ) {
                 my $name = lc( $champ->attr('data-name') =~ s/[^a-zA-Z]//xmsgr );
                 my @roles = map { $champ->attr("data-meta$_") } @{['', 1..5]};
          
@@ -156,7 +174,7 @@ post("/championdb" => sub ($c) {
                 }
             }
 
-            for my $champ ( @{ $frees->res->dom->find('li.game-champion') } ) {
+            for my $champ ( $roles_tx->res->dom->find('li.game-champion')->@* ) {
                 my @classes = split /\s+/xms, $champ->attr('class');
 
                 my ($name_info) = grep { /\A game-champion-/xms && !/\A game-champion-tag-/xms } @classes;
@@ -167,7 +185,6 @@ post("/championdb" => sub ($c) {
                     unless( exists $db->{$name} ) {
                         push @errors, "What is this for a champion: $name?";
                     } else {
-                        $free->{$name}->{'free'}  = 1 if 'game-champion-tag-free'     ~~ @classes;
                         $db->{$name}->{'top'}     = 1 if 'game-champion-tag-top'      ~~ @classes;
                         $db->{$name}->{'mid'}     = 1 if 'game-champion-tag-mid'      ~~ @classes;
                         $db->{$name}->{'adcarry'} = 1 if 'game-champion-tag-duo'      ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
