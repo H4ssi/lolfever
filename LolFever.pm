@@ -26,6 +26,8 @@ use Mojolicious::Lite;
 use Mojo::Path;
 
 use Digest;
+use Bytes::Random::Secure qw<random_bytes>;
+use Crypt::ScryptKDF qw<scrypt_hash scrypt_hash_verify>;
 
 use feature 'postderef';
 no warnings 'experimental::postderef';
@@ -36,7 +38,10 @@ my $config = plugin 'Config';
 my $base = $config->{'base'} // '';
 my $lol_api_key = $config->{'lol_api_key'};
 
-app->secrets(['HaShien233zyyY?']); 
+app->secrets(['HaShien233zyyY?']);
+
+random_bytes(32); # get rng seeded (this might block)
+
 my $salt = 'asdfp421c4 1r_';
 app->defaults( layout => 'layout' );
 app->ua->max_redirects(10);
@@ -259,7 +264,9 @@ get("/user/:name" => sub ($c) {
     my $champions = read_db('champions.db');
     my @names = sort ( keys %$champions );
 
-    $c->render($c->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw => !!$data->{'pwhash'}, mode => 'profile' );
+    my $pw_change_required = !(exists $data->{'pwhash'});
+
+    $c->render($c->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw_change_required => $pw_change_required, mode => 'profile' );
 })->name('user');
 
 post "/user/:name" => sub ($c) {
@@ -275,24 +282,30 @@ post "/user/:name" => sub ($c) {
         return $c->render( text => "User deactivated: $name", user => $name, mode => 'profile' );
     }
 
-    my $d = Digest->new('SHA-512')->add( $salt );
-    
-    my $auth;
+    my $pw = $c->param('current_pw');
+    my $hash;
+    my $pw_change_required = 0;
+    my $authenticated = 0;
 
     if( $data->{'pwhash'} ) {
-        ($auth) = keys %{ $data->{'pwhash'} };
+        ($hash) = keys %{ $data->{'pwhash'} };
     } else {
         my ($plain) = keys %{ $data->{'pw'} };
-        $auth = $d->clone->add( $plain )->b64digest;
+        $hash = scrypt_hash($plain, random_bytes(32));
+        $pw_change_required = 1;
     }
 
-    my $given = $d->clone->add( $c->param('current_pw') )->b64digest;
-  
-    unless( $auth eq $given ) {
+    if( $hash =~ / \A SCRYPT: /xms ) {
+        $authenticated = scrypt_hash_verify( $pw, $hash );  
+    } else {
+        $authenticated = $hash eq Digest->new('SHA-512')->add($salt)->add($pw)->b64digest;
+    }
+
+    unless( $authenticated ) {
         return $c->render( text => 'invalid pw', user => $name, mode => 'profile' );
     }
 
-    unless( $data->{'pwhash'} || $c->param('new_pw_1') ) {
+    if( $pw_change_required && !$c->param('new_pw_1') ) {
         return $c->render( text => 'must change pw', user => $name, mode => 'profile' );
     }
 
@@ -300,8 +313,10 @@ post "/user/:name" => sub ($c) {
         unless( $c->param('new_pw_1') eq $c->param('new_pw_2') ) {
             return $c->render( text => 'new pws did not match', user => $name, mode => 'profile' );
         } else {
-            $data->{'pwhash'} = { $d->clone->add( $c->param('new_pw_1') )->b64digest => 1 };
+            $data->{'pwhash'} = { scrypt_hash($c->param('new_pw_1'), random_bytes(32)) => 1 };
         }
+    } elsif( $hash !~ / \A SCRYPT: /xms ) {
+        $data->{'pwhash'} = { scrypt_hash($pw, random_bytes(32)) => 1 };
     }
     
     $data->{'can'} = { map { $_ => !!$c->param("can:$_") } @ROLES };
@@ -635,7 +650,7 @@ __DATA__
     <div class="form-group">
         <label for="new_pw_1">
             New password 
-            % if( !$pw ) {
+            % if( $pw_change_required ) {
                 <strong>(Password change required!)</strong>
             % } else {
                 (Leave empty if you do not want to change your password)

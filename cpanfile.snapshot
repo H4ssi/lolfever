@@ -1,5 +1,19 @@
 # carton snapshot format: version 1.0
 DISTRIBUTIONS
+  Bytes-Random-Secure-0.28
+    pathname: D/DA/DAVIDO/Bytes-Random-Secure-0.28.tar.gz
+    provides:
+      Bytes::Random::Secure 0.28
+    requirements:
+      Carp 0
+      Crypt::Random::Seed 0
+      ExtUtils::MakeMaker 6.56
+      MIME::Base64 0
+      MIME::QuotedPrint 3.03
+      Math::Random::ISAAC 0
+      Scalar::Util 1.21
+      Test::More 0.98
+      perl 5.006000
   CPAN-Meta-2.150001
     pathname: D/DA/DAGOLDEN/CPAN-Meta-2.150001.tar.gz
     provides:
@@ -23,6 +37,45 @@ DISTRIBUTIONS
       strict 0
       version 0.88
       warnings 0
+  Crypt-Random-Seed-0.03
+    pathname: D/DA/DANAJ/Crypt-Random-Seed-0.03.tar.gz
+    provides:
+      Crypt::Random::Seed 0.03
+    requirements:
+      Carp 0
+      Crypt::Random::TESHA2 0
+      Exporter 5.562
+      ExtUtils::MakeMaker 0
+      Fcntl 0
+      Test::More 0.45
+      base 0
+      constant 0
+      perl 5.006002
+  Crypt-Random-TESHA2-0.01
+    pathname: D/DA/DANAJ/Crypt-Random-TESHA2-0.01.tar.gz
+    provides:
+      Crypt::Random::TESHA2 0.01
+      Crypt::Random::TESHA2::Config 0.01
+    requirements:
+      Carp 0
+      Digest::SHA 5.22
+      Exporter 5.562
+      ExtUtils::MakeMaker 0
+      Test::More 0.45
+      Time::HiRes 1.9711
+      base 0
+      perl 5.006002
+  Crypt-ScryptKDF-0.008
+    pathname: M/MI/MIK/Crypt-ScryptKDF-0.008.tar.gz
+    provides:
+      Crypt::ScryptKDF 0.008
+    requirements:
+      Exporter 5.59
+      ExtUtils::CBuilder 0
+      MIME::Base64 0
+      Module::Build 0
+      Test::More 0
+      perl 5.006
   EV-4.18
     pathname: M/ML/MLEHMANN/EV-4.18.tar.gz
     provides:
@@ -48,20 +101,29 @@ DISTRIBUTIONS
       Mozilla::CA 0
       Net::SSLeay 1.46
       Scalar::Util 0
-  IO-Socket-Socks-0.66
-    pathname: O/OL/OLEG/IO-Socket-Socks-0.66.tar.gz
+  IO-Socket-Socks-0.67
+    pathname: O/OL/OLEG/IO-Socket-Socks-0.67.tar.gz
     provides:
-      IO::Socket::Socks 0.66
-      IO::Socket::Socks::Debug 0.66
-      IO::Socket::Socks::Error 0.66
-      IO::Socket::Socks::ReadOnlyVar 0.66
-      IO::Socket::Socks::SocketClassVar 0.66
+      IO::Socket::Socks 0.67
+      IO::Socket::Socks::Debug 0.67
+      IO::Socket::Socks::Error 0.67
+      IO::Socket::Socks::ReadOnlyVar 0.67
+      IO::Socket::Socks::SocketClassVar 0.67
     requirements:
       ExtUtils::MakeMaker 6.52
       IO::Select 0
       Socket 1.94
       Test::More 0.88
       constant 1.03
+  Math-Random-ISAAC-1.004
+    pathname: J/JA/JAWNSY/Math-Random-ISAAC-1.004.tar.gz
+    provides:
+      Math::Random::ISAAC 1.004
+      Math::Random::ISAAC::PP 1.004
+    requirements:
+      ExtUtils::MakeMaker 6.31
+      Test::More 0.62
+      Test::NoWarnings 0.084
   Modern-Perl-1.20150127
     pathname: C/CH/CHROMATIC/Modern-Perl-1.20150127.tar.gz
     provides:
@@ -127,8 +189,8 @@ DISTRIBUTIONS
       Text::ParseWords 0
       perl 5.008000
       version 0.87
-  Mojolicious-6.02
-    pathname: S/SR/SRI/Mojolicious-6.02.tar.gz
+  Mojolicious-6.03
+    pathname: S/SR/SRI/Mojolicious-6.03.tar.gz
     provides:
       Mojo undef
       Mojo::Asset undef
@@ -191,7 +253,7 @@ DISTRIBUTIONS
       Mojo::UserAgent::Server undef
       Mojo::UserAgent::Transactor undef
       Mojo::Util undef
-      Mojolicious 6.02
+      Mojolicious 6.03
       Mojolicious::Command undef
       Mojolicious::Command::cgi undef
       Mojolicious::Command::cpanify undef
@@ -268,6 +330,39 @@ DISTRIBUTIONS
       MIME::Base64 0
       Test::More 0.60_01
       perl 5.005
+  Test-NoWarnings-1.04
+    pathname: A/AD/ADAMK/Test-NoWarnings-1.04.tar.gz
+    provides:
+      Test::NoWarnings 1.04
+      Test::NoWarnings::Warning 1.04
+    requirements:
+      ExtUtils::MakeMaker 0
+      Test::Builder 0.86
+      Test::More 0.47
+      Test::Tester 0.107
+      perl 5.006
+  Test-Simple-1.001014
+    pathname: E/EX/EXODIST/Test-Simple-1.001014.tar.gz
+    provides:
+      Test::Builder 1.001014
+      Test::Builder::IO::Scalar 2.113
+      Test::Builder::Module 1.001014
+      Test::Builder::Tester 1.28
+      Test::Builder::Tester::Color 1.290001
+      Test::Builder::Tester::Tie 1.28
+      Test::More 1.001014
+      Test::Simple 1.001014
+      Test::Tester 0.114
+      Test::Tester::Capture undef
+      Test::Tester::CaptureRunner undef
+      Test::Tester::Delegate undef
+      Test::use::ok 0.16
+      ok 0.16
+    requirements:
+      ExtUtils::MakeMaker 0
+      Scalar::Util 1.13
+      Test::Harness 2.03
+      perl 5.006
   common-sense-3.73
     pathname: M/ML/MLEHMANN/common-sense-3.73.tar.gz
     provides:
