@@ -6,4 +6,5 @@
         base => '/lolfever',
         lol_api_key => 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
         secrets => ['current_secret', 'old_secret', 'older_secret'],
+        legacy_sha_salt => 'your_salt',
 }

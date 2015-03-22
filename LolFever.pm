@@ -39,10 +39,8 @@ my $base = $config->{'base'} // '';
 my $lol_api_key = $config->{'lol_api_key'};
 
 app->secrets($config->{'secrets'});
-
 random_bytes(32); # get rng seeded (this might block)
-
-my $salt = 'asdfp421c4 1r_';
+my $legacy_sha_salt = $config->{'legacy_sha_salt'};
 app->defaults( layout => 'layout' );
 app->ua->max_redirects(10);
 
@@ -298,7 +296,7 @@ post "/user/:name" => sub ($c) {
     if( $hash =~ / \A SCRYPT: /xms ) {
         $authenticated = scrypt_hash_verify( $pw, $hash );  
     } else {
-        $authenticated = $hash eq Digest->new('SHA-512')->add($salt)->add($pw)->b64digest;
+        $authenticated = $hash eq Digest->new('SHA-512')->add($legacy_sha_salt)->add($pw)->b64digest;
     }
 
     unless( $authenticated ) {
