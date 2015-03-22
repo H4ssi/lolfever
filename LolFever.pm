@@ -38,7 +38,7 @@ my $config = plugin 'Config';
 my $base = $config->{'base'} // '';
 my $lol_api_key = $config->{'lol_api_key'};
 
-app->secrets(['HaShien233zyyY?']);
+app->secrets($config->{'secrets'});
 
 random_bytes(32); # get rng seeded (this might block)
 
