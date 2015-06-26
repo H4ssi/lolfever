@@ -1,3 +1,21 @@
+
+## LoL Fever - random meta FTW!
+
+Given the champions owned and preferred team roles, randomly suggests picks for players, so that the resulting composition adheres to the meta.
+
+## Quick guide
+
+Use [carton](https://metacpan.org/pod/Carton) to run LoL Fever:
+
+```
+$ carton install
+$ carton exec morbo LolFever.pm
+```
+
+You need to provide a `LolFever.conf`. Refer to [`LolFever.conf.example`](LolFever.conf.example).
+
+## License
+
 LoLfever - random meta ftw
 Copyright (C) 2013, 2015  Florian Hassanen
 
@@ -13,4 +31,3 @@ GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
