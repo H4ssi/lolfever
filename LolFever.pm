@@ -25,6 +25,7 @@ use Mojolicious::Lite;
 
 use Mojo::Path;
 use Mojo::Pg;
+use Mojo::IOLoop;
 
 use Digest;
 use Bytes::Random::Secure qw<random_bytes>;
@@ -70,6 +71,14 @@ sub parse_role( $role_string ) {
     return;
 }
 
+sub pg_setup ( $data, $version, $action ) {
+    if ( $data->{schema_version} < $version ) {
+        $action->();
+        $data->{schema_version} = $version;
+        $pg->db->query('update meta set data = ?::jsonb', { json => $data });
+    }
+}
+
 sub pg_init() {
     $pg->db->query('create table if not exists meta (id integer primary key check (id = 0), data jsonb)');
     my $data = $pg->db->query('select data from meta')->expand->array;
@@ -77,6 +86,38 @@ sub pg_init() {
         $data = [{ schema_version => 0 }];
         $pg->db->query('insert into meta (id, data) values (0, ?::jsonb)', { json => $data->[0] });        
     }
+    $data = $data->[0];
+
+    pg_setup($data, 1, sub {
+        $pg->db->query('create table champion (id integer primary key, key text unique, name text)')
+    });
+}
+
+sub store_champs( $champs ) {
+    my $h = $pg->db;
+    my $tx = $h->begin;
+
+    sub handler ($c) {
+        return sub ($d, @) {
+                my $cb = $d->begin();
+                $h->query('insert into champion (id, key, name) values (?, ?, ?)',
+                    $c->{id}, $c->{key}, $c->{name},
+                    sub ($, $err, @) {
+                        if ($err) {
+                            $h->query('update champion set (key, name) = (?, ?) where id = ?',
+                                $c->{key}, $c->{name}, $c->{id},
+                                $cb);
+                        } else {
+                            $cb->();
+                        }
+                    });
+        }
+    }
+
+    my $d = Mojo::IOLoop->delay(
+        (map { handler($_) } (values %$champs)),
+        sub (@) { $tx->commit; }
+    )->wait;
 }
 
 sub write_db( $file, $data ) {
@@ -128,6 +169,11 @@ post("/championdb" => sub ($c) {
 
             my $champions = $champions_tx->res->json->{'champions'};
             my $static = $static_tx->res->json->{'data'};
+
+            my $champs = { map { $_->{id} => { id => $_->{id},
+                                               key => lc $static->{$_->{id}}->{key},
+                                               name => $static->{$_->{id}}->{name},} } @$champions };
+            store_champs($champs);
 
             my $db = { map { (lc $static->{$_->{id}}->{key}) => {} } @$champions };
             my $free = { map { (lc $static->{$_->{id}}->{key}) => { free => 1 } } (grep { $_->{freeToPlay} } @$champions) }; 
