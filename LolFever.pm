@@ -24,6 +24,7 @@ use feature 'signatures';
 use Mojolicious::Lite;
 
 use Mojo::Path;
+use Mojo::Pg;
 
 use Digest;
 use Bytes::Random::Secure qw<random_bytes>;
@@ -37,6 +38,7 @@ no warnings 'experimental::signatures';
 my $config = plugin 'Config';
 my $base = $config->{'base'} // '';
 my $lol_api_key = $config->{'lol_api_key'};
+my $pg = Mojo::Pg->new( $config->{connection_string} );
 
 app->secrets($config->{'secrets'});
 random_bytes(32); # get rng seeded (this might block)
@@ -66,6 +68,15 @@ sub parse_role( $role_string ) {
         return $role if $role_string =~ /$PARSE{$role}/xmsi;
     }
     return;
+}
+
+sub pg_init() {
+    $pg->db->query('create table if not exists meta (id integer primary key check (id = 0), data jsonb)');
+    my $data = $pg->db->query('select data from meta')->expand->array;
+    unless ($data) {
+        $data = [{ schema_version => 0 }];
+        $pg->db->query('insert into meta (id, data) values (0, ?::jsonb)', { json => $data->[0] });        
+    }
 }
 
 sub write_db( $file, $data ) {
@@ -450,6 +461,7 @@ post("/troll" => sub ($c) {
     return roll($c, 'trolling');
 })->name('trollroll');
 
+pg_init();
 app->start;
 
 __DATA__

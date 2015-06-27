@@ -1,4 +1,5 @@
 requires 'Mojolicious', '>= 6.00', '< 7.00';
+requires 'Mojo::Pg', '>= 2.00', '< 3.00';
 requires 'Modern::Perl', '1.2015';
 
 requires 'Crypt::ScryptKDF';

@@ -3,6 +3,7 @@
                 listen => ['http://127.0.0.1:7070'],
                 proxy => 1,
         },
+        connection_string => 'postgresql://user:password@host:port/database',
         base => '/lolfever',
         lol_api_key => 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
         secrets => ['current_secret', 'old_secret', 'older_secret'],
