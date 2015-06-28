@@ -352,12 +352,14 @@ sub manage_whitelist( $champion, $role, $listed ) {
 get ( '/migrate_lists' => sub ($c) {
     my $b = read_db('blacklist.db');
     for my $champ (keys %$b) {
+        $champ = "monkeyking" if $champ eq "wukong";
         for my $role (keys $b->{$champ}->%*) {
             add_blacklist( $champ, $role );
         }
     }
     my $w = read_db('whitelist.db');
     for my $champ (keys %$w) {
+        $champ = "monkeyking" if $champ eq "wukong";
         for my $role (keys $w->{$champ}->%*) {
             add_whitelist( $champ, $role );
         }
@@ -378,7 +380,7 @@ get ( '/migrate_users' => sub ($c) {
 
         $u->{pw} = (keys $u->{pw}->%*)[0];
         $u->{pwhash} = (keys $u->{pwhash}->%*)[0] if exists $u->{pwhash};
-        $u->{champions} = { map { $ids->{$_} => undef } (keys $u->{owns}->%*) };
+        $u->{champions} = { map { $ids->{$_ eq "wukong" ? "monkeyking" : $_} => undef } (keys $u->{owns}->%*) };
         $u->{roles} = { map { $_ => undef } (keys $u->{can}->%*) };
 
         $pg->db->query("insert into summoner (name, pw, pwhash, champions, roles) values (?, ?, ?, ?::jsonb, ?::jsonb)",
