@@ -335,12 +335,10 @@ get("/user/:name" => sub ($c) {
     }
 
     my $data = read_db("$name.db");
-    my $champions = read_db('champions.db');
-    my @names = sort ( keys %$champions );
 
     my $pw_change_required = !(exists $data->{'pwhash'});
 
-    $c->render($c->param('edit') ? 'user_edit' : 'user', user => $name, names => \@names, roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw_change_required => $pw_change_required, mode => 'profile' );
+    $c->render($c->param('edit') ? 'user_edit' : 'user', user => $name, champs => get_champs(), roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw_change_required => $pw_change_required, mode => 'profile' );
 })->name('user');
 
 post "/user/:name" => sub ($c) {
@@ -395,10 +393,9 @@ post "/user/:name" => sub ($c) {
     
     $data->{'can'} = { map { $_ => !!$c->param("can:$_") } @ROLES };
 
-    my $champions = read_db('champions.db');
-    my @names = keys %$champions;
+    my $champs = get_champs();
 
-    $data->{'owns'} = { map { $_ => !!$c->param("owns:$_") } @names };
+    $data->{'owns'} = { map { $_->{key} => !!$c->param("owns:$_->{key}") } @$champs };
 
     write_db("$name.db", $data);
 
@@ -672,9 +669,9 @@ __DATA__
 
 <h3>Owned champions</h3>
 <ul class="list-inline">
-% for my $champ (@$names) {
-    % if( $owns->{$champ} ) {
-        <li><%= $champ %></li>
+% for my $champ (@$champs) {
+    % if( $owns->{$champ->{key}} ) {
+        <li><%= $champ->{name} %></li>
     % }
 % }
 </ul>
@@ -702,11 +699,11 @@ __DATA__
 <div class="form-group">
     <label>Owned champions</label>
 
-    % for my $champ (@$names) {
+    % for my $champ (@$champs) {
         <div class="checkbox">    
             <label>
-                %= input_tag "owns:$champ", type => 'checkbox', value => 1, $owns->{$champ} ? ( checked => 'checked' ) : ()
-                <%= $champ %>
+                %= input_tag "owns:$champ->{key}", type => 'checkbox', value => 1, $owns->{$champ->{key}} ? ( checked => 'checked' ) : ()
+                <%= $champ->{name} %>
             </label>
         </div>
     % }
