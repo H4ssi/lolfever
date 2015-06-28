@@ -119,7 +119,7 @@ sub store_champs( $champs ) {
     my $h = $pg->db;
     my $tx = $h->begin;
 
-    sub handler ($c) {
+    my $handler = sub ($c) {
         return sub ($d, @) {
                 my $cb = $d->begin();
                 $h->query('insert into champion (id, key, name, free, roles) values (?, ?, ?, ?, ?::jsonb)',
@@ -134,10 +134,10 @@ sub store_champs( $champs ) {
                         }
                     });
         }
-    }
+    };
 
     my $d = Mojo::IOLoop->delay(
-        (map { handler($_) } (values %$champs)),
+        (map { $handler->($_) } (values %$champs)),
         sub (@) { $tx->commit; }
     )->wait;
 }
