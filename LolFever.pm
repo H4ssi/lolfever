@@ -110,6 +110,9 @@ sub pg_init() {
     pg_setup($data, 7, sub {
         $pg->db->query("alter table summoner add roles jsonb not null default '{}'::jsonb");
     });
+    pg_setup($data, 8, sub {
+        $pg->db->query("alter table summoner add champions jsonb not null default '{}'::jsonb");
+    });
 }
 
 sub store_champs( $champs ) {
@@ -169,8 +172,8 @@ sub remove_whitelist( $champ_key, $role ) {
 }
 
 sub save_user( $user ) {
-    $pg->db->query("update summoner set (pw, pwhash, roles) = (?, ?, ?) where name = ?",
-        $user->{pw}, $user->{pwhash}, {json => $user->{roles}}, $user->{name});
+    $pg->db->query("update summoner set (pw, pwhash, roles, champions) = (?, ?, ?, ?) where name = ?",
+        $user->{pw}, $user->{pwhash}, {json => $user->{roles}}, {json => $user->{champions}}, $user->{name});
 }
 
 sub get_users() {
@@ -400,13 +403,11 @@ get("/user/:name" => sub ($c) {
     return $c->render( text => "No user" ) unless defined $name;
 
     my $user = get_user( $name );
-    return $c->render( text => "No such user: $name", user => $name, mode => 'profile' ) unless $user;
-
-    my $data = read_db("$name.db");
+    return $c->render( text => "No such user: $name", name => $name, mode => 'profile' ) unless $user;
 
     my $pw_change_required = !(defined $user->{'pwhash'});
 
-    $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => get_champs(), roles => [ sort @ROLES ], owns => $data->{'owns'},  pw_change_required => $pw_change_required, mode => 'profile' );
+    $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => get_champs(), roles => [ sort @ROLES ], pw_change_required => $pw_change_required, mode => 'profile' );
 })->name('user');
 
 post "/user/:name" => sub ($c) {
@@ -414,9 +415,9 @@ post "/user/:name" => sub ($c) {
     return $c->render( text => "No user" ) unless defined $name;
 
     my $user = get_user( $name );
-    return $c->render( text => "No such user: $name", user => $name, mode => 'profile' ) unless $user;
+    return $c->render( text => "No such user: $name", name => $name, mode => 'profile' ) unless $user;
     
-    return $c->render( text => "User deactivated: $name", user => $name, mode => 'profile' ) unless $user->{pw} || $user->{pwhash};
+    return $c->render( text => "User deactivated: $name", name => $name, mode => 'profile' ) unless $user->{pw} || $user->{pwhash};
 
     my $data = read_db("$name.db");    
 
@@ -438,12 +439,12 @@ post "/user/:name" => sub ($c) {
         $authenticated = $hash eq Digest->new('SHA-512')->add($legacy_sha_salt)->add($pw)->b64digest;
     }
 
-    return $c->render( text => 'invalid pw', user => $name, mode => 'profile' ) unless $authenticated;
+    return $c->render( text => 'invalid pw', name => $name, mode => 'profile' ) unless $authenticated;
 
-    return $c->render( text => 'must change pw', user => $name, mode => 'profile' ) if $pw_change_required && !$c->param('new_pw_1');
+    return $c->render( text => 'must change pw', name => $name, mode => 'profile' ) if $pw_change_required && !$c->param('new_pw_1');
 
     if( $c->param('new_pw_1') ) {
-        return $c->render( text => 'new pws did not match', user => $name, mode => 'profile' ) unless $c->param('new_pw_1') eq $c->param('new_pw_2');
+        return $c->render( text => 'new pws did not match', name => $name, mode => 'profile' ) unless $c->param('new_pw_1') eq $c->param('new_pw_2');
         
         $user->{pwhash} = scrypt_hash($c->param('new_pw_1'), random_bytes(32));
     } elsif( $hash !~ / \A SCRYPT: /xms ) {
@@ -456,6 +457,7 @@ post "/user/:name" => sub ($c) {
     my $champs = get_champs();
 
     $data->{owns} = { map { $_->{key} => !!$c->param("owns:$_->{key}") } @$champs };
+    $user->{champions} = { map { $_->{id} => undef } (grep { $c->param("owns:$_->{key}") } @$champs) };
 
     write_db("$name.db", $data);
     save_user( $user );
@@ -725,7 +727,7 @@ __DATA__
 <h3>Owned champions</h3>
 <ul class="list-inline">
 % for my $champ (@$champs) {
-    % if( $owns->{$champ->{key}} ) {
+    % if( exists $user->{champions}{$champ->{id}} ) {
         <li><%= $champ->{name} %></li>
     % }
 % }
@@ -757,7 +759,7 @@ __DATA__
     % for my $champ (@$champs) {
         <div class="checkbox">    
             <label>
-                %= input_tag "owns:$champ->{key}", type => 'checkbox', value => 1, $owns->{$champ->{key}} ? ( checked => 'checked' ) : ()
+                %= input_tag "owns:$champ->{key}", type => 'checkbox', value => 1, exists $user->{champions}{$champ->{id}} ? ( checked => 'checked' ) : ()
                 <%= $champ->{name} %>
             </label>
         </div>
