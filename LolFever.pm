@@ -303,12 +303,11 @@ post("/championdb" => sub ($c) {
             }
 
             store_champs($champs);
-            my @sorted_champs = sort { $a->{name} cmp $b->{name} } (values %$champs);
 
             write_db('champions.db', $db);
             write_db('free.db', $free);
 
-            $c->render( 'championdb', errors => ( @errors ? \@errors : undef ), champs => \@sorted_champs, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
+            $c->render( 'championdb', errors => ( @errors ? \@errors : undef ), champs => get_champs(), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
         }
     );
 })->name('championdb');
@@ -358,7 +357,7 @@ get( "/champion/:champion/:role/no_whitelist" => sub ($c) {
 })->name('no_whitelist');
 
 get "/championdb" => sub ($c) {
-    $c->render( 'championdb', errors => undef, champs => get_champs(), blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
+    $c->render( 'championdb', errors => undef, champs => get_champs(), updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
 };
 
 get("/user/:name" => sub ($c) {
@@ -807,16 +806,16 @@ __DATA__
             % for my $role ( @$roles ) {
                 <td>
                     % if( exists $champ->{roles}{$role} ) {
-                        %= link_to $blacklist->{$champ->{key}}{$role} ? 'no_blacklist' : 'blacklist' => { champion => $champ->{key}, role => $role } => begin
-                            % if( $blacklist->{$champ->{key}}{$role} ) {
+                        %= link_to exists $champ->{blacklist}{$role} ? 'no_blacklist' : 'blacklist' => { champion => $champ->{key}, role => $role } => begin
+                            % if( exists $champ->{blacklist}{$role} ) {
                                 <s><%= $role %></s>
                             % } else {
                                 <%= $role %>
                             % }
                         % end
                     % } else {
-                        %= link_to $whitelist->{$champ->{key}}{$role} ? 'no_whitelist' : 'whitelist' => { champion => $champ->{key}, role => $role } => begin
-                            % if( $whitelist->{$champ->{key}}{$role} ) {
+                        %= link_to exists $champ->{whitelist}{$role} ? 'no_whitelist' : 'whitelist' => { champion => $champ->{key}, role => $role } => begin
+                            % if( exists $champ->{whitelist}{$role} ) {
                                 <u><%= $role %></u>
                             % } else {
                                 <span class="non-role"><%= $role %></span>
