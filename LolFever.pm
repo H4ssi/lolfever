@@ -91,6 +91,10 @@ sub pg_init() {
     pg_setup($data, 1, sub {
         $pg->db->query('create table champion (id integer primary key, key text unique, name text)')
     });
+    pg_setup($data, 2, sub {
+        $pg->db->query('alter table champion alter key set not null');
+        $pg->db->query('alter table champion alter name set not null');
+    });
 }
 
 sub store_champs( $champs ) {
