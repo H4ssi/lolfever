@@ -98,6 +98,9 @@ sub pg_init() {
     pg_setup($data, 3, sub {
         $pg->db->query("alter table champion add free boolean not null default 'f'");
     });
+    pg_setup($data, 4, sub {
+        $pg->db->query("alter table champion add roles jsonb not null default '{}'::jsonb");
+    });
 }
 
 sub store_champs( $champs ) {
@@ -107,12 +110,12 @@ sub store_champs( $champs ) {
     sub handler ($c) {
         return sub ($d, @) {
                 my $cb = $d->begin();
-                $h->query('insert into champion (id, key, name, free) values (?, ?, ?, ?)',
-                    $c->{id}, $c->{key}, $c->{name}, $c->{free} ? 't' : 'f',
+                $h->query('insert into champion (id, key, name, free, roles) values (?, ?, ?, ?, ?::jsonb)',
+                    $c->{id}, $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} },
                     sub ($, $err, @) {
                         if ($err) {
-                            $h->query('update champion set (key, name, free) = (?, ?, ?) where id = ?',
-                                $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', $c->{id},
+                            $h->query('update champion set (key, name, free, roles) = (?, ?, ?, ?::jsonb) where id = ?',
+                                $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} }, $c->{id},
                                 $cb);
                         } else {
                             $cb->();
@@ -177,19 +180,15 @@ post("/championdb" => sub ($c) {
             my $champions = $champions_tx->res->json->{'champions'};
             my $static = $static_tx->res->json->{'data'};
 
+            my $ids = { map { (lc $_->{key}) => $_->{id} } (values %$static) };
             my $champs = { map { $_->{id} => { id => $_->{id},
-                                               key => lc $static->{$_->{id}}->{key},
-                                               name => $static->{$_->{id}}->{name},
-                                               free => !!$_->{freeToPlay},} } @$champions };
-            store_champs($champs);
+                                               key => lc $static->{$_->{id}}{key},
+                                               name => $static->{$_->{id}}{name},
+                                               free => !!$_->{freeToPlay},
+                                               roles => {},} } @$champions };
 
             my $db = { map { (lc $static->{$_->{id}}->{key}) => {} } @$champions };
             my $free = { map { (lc $static->{$_->{id}}->{key}) => { free => 1 } } (grep { $_->{freeToPlay} } @$champions) }; 
-
-            $db->{wukong} = $db->{monkeyking};
-            delete $db->{monkeyking};
-            $free->{wukong} = $free->{monkeyking};
-            delete $db->{monkeyking};
 
             for my $champ ( $champs_tx->res->dom->find('.champion-list tr')->@* ) {
                 my $a = $champ->at('.champion-list-icon > a');
@@ -197,22 +196,22 @@ post("/championdb" => sub ($c) {
                     unless( $a->attr('href') =~ / ( [^\/]*? ) \z/xms ) {
                         push @errors, 'Could not parse champion name from: '.($a->attr('href'));
                     } else {
-                        my $name = $1;
-                        $name = 'wukong' if $name eq 'monkeyking';
+                        my $key = $1;
 
-                        unless( exists $db->{$name} ) {
-                            push @errors, "What is this champion: $name";
+                        unless( exists $ids->{$key} ) {
+                            push @errors, "What is this champion: $key";
                         } else {
                             my $role = $champ->at('td:nth-last-of-type(2)');
                             unless( defined $role && defined $role->attr('data-sortval') ) {
-                                push @errors, "No role found for champion $name";
+                                push @errors, "No role found for champion $key";
                             } else {
                                 my $r = parse_role($role->attr('data-sortval'));
                                 
                                 unless( defined $r ) {
-                                    push @errors, "Do not know what role this is: '".($role->attr('data-sortval'))."' (champion is '$name')";
+                                    push @errors, "Do not know what role this is: '".($role->attr('data-sortval'))."' (champion is '$key')";
                                 } else {
-                                    $db->{$name}->{$r} = 1;
+                                    $db->{$key}->{$r} = 1;
+                                    $champs->{$ids->{$key}}{roles}{$r} = undef;
                                 }
                             }
                         }
@@ -221,11 +220,11 @@ post("/championdb" => sub ($c) {
             }
 
             for my $champ ( $guides_tx->res->dom->find('#guides-champion-list > .big-champion-icon')->@* ) {
-                my $name = lc( $champ->attr('data-name') =~ s/[^a-zA-Z]//xmsgr );
+                my ($key) = $champ->attr('href') =~ /champion=([a-z]*)/xms;
                 my @roles = map { $champ->attr("data-meta$_") } @{['', 1..5]};
          
-                unless( exists $db->{$name} ) {
-                    push @errors, "No such champion: $name/".($champ->{'name'});
+                unless( exists $ids->{$key} ) {
+                    push @errors, "No such champion: $key";
                 } else {
                     for my $role (@roles) {
                         next unless defined $role;
@@ -234,9 +233,10 @@ post("/championdb" => sub ($c) {
                         my $r = parse_role($role);
 
                         unless( $r ) {
-                            push @errors, "Do not know what role this is again: '$role' (champion is '$name')";
+                            push @errors, "Do not know what role this is again: '$role' (champion is '$key')";
                         } else {
-                            $db->{$name}->{$r} = 1;
+                            $db->{$key}->{$r} = 1;
+                            $champs->{$ids->{$key}}{roles}{$r} = undef;
                         }
                     }
                 }
@@ -245,22 +245,31 @@ post("/championdb" => sub ($c) {
             for my $champ ( $roles_tx->res->dom->find('li.game-champion')->@* ) {
                 my @classes = split /\s+/xms, $champ->attr('class');
 
-                my ($name_info) = grep { /\A game-champion-/xms && !/\A game-champion-tag-/xms } @classes;
+                my ($key_info) = grep { /\A game-champion-/xms && !/\A game-champion-tag-/xms } @classes;
 
-                if( $name_info =~ /\A game-champion-(.*) \z/xms ) {
-                    my $name = $1 =~ s/[^a-z]//xmsgr;
+                if( $key_info =~ /\A game-champion-(.*) \z/xms ) {
+                    my $key = $1 =~ s/[^a-z]//xmsgr;
+                    $key = 'monkeyking' if $key eq 'wukong';
 
-                    unless( exists $db->{$name} ) {
-                        push @errors, "What is this for a champion: $name?";
+                    unless( exists $ids->{$key} ) {
+                        push @errors, "What is this for a champion: $key?";
                     } else {
-                        $db->{$name}->{'top'}     = 1 if 'game-champion-tag-top'      ~~ @classes;
-                        $db->{$name}->{'mid'}     = 1 if 'game-champion-tag-mid'      ~~ @classes;
-                        $db->{$name}->{'adcarry'} = 1 if 'game-champion-tag-duo'      ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
-                        $db->{$name}->{'support'} = 1 if 'game-champion-tag-support'  ~~ @classes;
-                        $db->{$name}->{'jungle'}  = 1 if 'game-champion-tag-jungler'  ~~ @classes;
+                        $db->{$key}->{'top'}     = 1 if 'game-champion-tag-top'      ~~ @classes;
+                        $db->{$key}->{'mid'}     = 1 if 'game-champion-tag-mid'      ~~ @classes;
+                        $db->{$key}->{'adcarry'} = 1 if 'game-champion-tag-duo'      ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
+                        $db->{$key}->{'support'} = 1 if 'game-champion-tag-support'  ~~ @classes;
+                        $db->{$key}->{'jungle'}  = 1 if 'game-champion-tag-jungler'  ~~ @classes;
+                        $champs->{$ids->{$key}}{roles}{'top'}     = undef if 'game-champion-tag-top'      ~~ @classes;
+                        $champs->{$ids->{$key}}{roles}{'mid'}     = undef if 'game-champion-tag-mid'      ~~ @classes;
+                        $champs->{$ids->{$key}}{roles}{'adcarry'} = undef if 'game-champion-tag-duo'      ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
+                        $champs->{$ids->{$key}}{roles}{'support'} = undef if 'game-champion-tag-support'  ~~ @classes;
+                        $champs->{$ids->{$key}}{roles}{'jungle'}  = undef if 'game-champion-tag-jungler'  ~~ @classes;
+
                     }
                 }
             }
+
+            store_champs($champs);
 
             write_db('champions.db', $db);
             write_db('free.db', $free);
