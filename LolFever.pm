@@ -95,6 +95,9 @@ sub pg_init() {
         $pg->db->query('alter table champion alter key set not null');
         $pg->db->query('alter table champion alter name set not null');
     });
+    pg_setup($data, 3, sub {
+        $pg->db->query("alter table champion add free boolean not null default 'f'");
+    });
 }
 
 sub store_champs( $champs ) {
@@ -104,12 +107,12 @@ sub store_champs( $champs ) {
     sub handler ($c) {
         return sub ($d, @) {
                 my $cb = $d->begin();
-                $h->query('insert into champion (id, key, name) values (?, ?, ?)',
-                    $c->{id}, $c->{key}, $c->{name},
+                $h->query('insert into champion (id, key, name, free) values (?, ?, ?, ?)',
+                    $c->{id}, $c->{key}, $c->{name}, $c->{free} ? 't' : 'f',
                     sub ($, $err, @) {
                         if ($err) {
-                            $h->query('update champion set (key, name) = (?, ?) where id = ?',
-                                $c->{key}, $c->{name}, $c->{id},
+                            $h->query('update champion set (key, name, free) = (?, ?, ?) where id = ?',
+                                $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', $c->{id},
                                 $cb);
                         } else {
                             $cb->();
@@ -176,7 +179,8 @@ post("/championdb" => sub ($c) {
 
             my $champs = { map { $_->{id} => { id => $_->{id},
                                                key => lc $static->{$_->{id}}->{key},
-                                               name => $static->{$_->{id}}->{name},} } @$champions };
+                                               name => $static->{$_->{id}}->{name},
+                                               free => !!$_->{freeToPlay},} } @$champions };
             store_champs($champs);
 
             my $db = { map { (lc $static->{$_->{id}}->{key}) => {} } @$champions };
