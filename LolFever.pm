@@ -328,6 +328,23 @@ sub manage_whitelist( $champion, $role, $listed ) {
     manage_list( 'whitelist.db', $champion, $role, $listed );
 }
 
+get ( '/migrate_lists' => sub ($c) {
+    my $b = read_db('blacklist.db');
+    for my $champ (keys %$b) {
+        for my $role (keys $b->{$champ}->%*) {
+            add_blacklist( $champ, $role );
+        }
+    }
+    my $w = read_db('whitelist.db');
+    for my $champ (keys %$w) {
+        for my $role (keys $w->{$champ}->%*) {
+            add_whitelist( $champ, $role );
+        }
+    }
+
+    $c->redirect_to('championdb');
+});
+
 get( "/champion/:champion/:role/blacklist" => sub ($c) {
     manage_blacklist( $c->param('champion'), $c->param('role'), 1 );
     add_blacklist( $c->param('champion'), $c->param('role') );
