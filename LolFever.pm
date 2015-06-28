@@ -107,6 +107,9 @@ sub pg_init() {
     pg_setup($data, 6, sub {
         $pg->db->query('create table summoner (id serial primary key, name text unique not null, pw text not null, pwhash text)');
     });
+    pg_setup($data, 7, sub {
+        $pg->db->query("alter table summoner add roles jsonb not null default '{}'::jsonb");
+    });
 }
 
 sub store_champs( $champs ) {
@@ -166,16 +169,16 @@ sub remove_whitelist( $champ_key, $role ) {
 }
 
 sub save_user( $user ) {
-    $pg->db->query("update summoner set (pw, pwhash) = (?, ?) where name = ?",
-        $user->{pw}, $user->{pwhash}, $user->{name});
+    $pg->db->query("update summoner set (pw, pwhash, roles) = (?, ?, ?) where name = ?",
+        $user->{pw}, $user->{pwhash}, {json => $user->{roles}}, $user->{name});
 }
 
 sub get_users() {
-    return $pg->db->query('select * from summoner order by name')->hashes;
+    return $pg->db->query('select * from summoner order by name')->expand->hashes;
 }
 
 sub get_user( $name ) {
-    return $pg->db->query('select * from summoner where name = ?', $name)->hash;
+    return $pg->db->query('select * from summoner where name = ?', $name)->expand->hash;
 }
 
 sub write_db( $file, $data ) {
@@ -403,7 +406,7 @@ get("/user/:name" => sub ($c) {
 
     my $pw_change_required = !(defined $user->{'pwhash'});
 
-    $c->render($c->param('edit') ? 'user_edit' : 'user', user => $name, champs => get_champs(), roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw_change_required => $pw_change_required, mode => 'profile' );
+    $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => get_champs(), roles => [ sort @ROLES ], owns => $data->{'owns'},  pw_change_required => $pw_change_required, mode => 'profile' );
 })->name('user');
 
 post "/user/:name" => sub ($c) {
@@ -448,6 +451,7 @@ post "/user/:name" => sub ($c) {
     }
     
     $data->{can} = { map { $_ => !!$c->param("can:$_") } @ROLES };
+    $user->{roles} = { map { $_ => undef } (grep { $c->param("can:$_") } @ROLES) };
 
     my $champs = get_champs();
 
@@ -630,7 +634,7 @@ __DATA__
                 </li>
                 <% if( $mode eq 'profile' ) { %> 
                     <li class="active">
-                        %= link_to ( (stash 'user') . "'" . ( (stash 'user') =~ /s \z/xms ? '' : 's') . ' profile')                
+                        %= link_to ( (stash 'name') . "'" . ( (stash 'name') =~ /s \z/xms ? '' : 's') . ' profile')                
                     </li> 
                 <% } %>
             </ul>
@@ -712,7 +716,7 @@ __DATA__
 <h3>Possible roles</h3>
 <ul class="list-inline">
 % for my $role (@$roles) {
-    % if( $can->{$role} ) {
+    % if( exists $user->{roles}{$role} ) {
         <li><%= $role %></li>
     % }
 % }
@@ -740,7 +744,7 @@ __DATA__
     % for my $role (@$roles) {
         <div class="checkbox">    
             <label>
-                %= input_tag "can:$role", type => 'checkbox', value => 1, $can->{$role} ? ( checked => 'checked' ) : ()
+                %= input_tag "can:$role", type => 'checkbox', value => 1, exists $user->{roles}{$role} ? ( checked => 'checked' ) : ()
                 <%= $role %>
             </label>
         </div>

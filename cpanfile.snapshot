@@ -14,29 +14,6 @@ DISTRIBUTIONS
       Scalar::Util 1.21
       Test::More 0.98
       perl 5.006000
-  CPAN-Meta-2.150001
-    pathname: D/DA/DAGOLDEN/CPAN-Meta-2.150001.tar.gz
-    provides:
-      CPAN::Meta 2.150001
-      CPAN::Meta::Converter 2.150001
-      CPAN::Meta::Feature 2.150001
-      CPAN::Meta::History 2.150001
-      CPAN::Meta::Merge 2.150001
-      CPAN::Meta::Prereqs 2.150001
-      CPAN::Meta::Spec 2.150001
-      CPAN::Meta::Validator 2.150001
-    requirements:
-      CPAN::Meta::Requirements 2.121
-      CPAN::Meta::YAML 0.008
-      Carp 0
-      ExtUtils::MakeMaker 6.17
-      JSON::PP 2.27200
-      Parse::CPAN::Meta 1.4414
-      Scalar::Util 0
-      perl 5.008
-      strict 0
-      version 0.88
-      warnings 0
   Crypt-Random-Seed-0.03
     pathname: D/DA/DANAJ/Crypt-Random-Seed-0.03.tar.gz
     provides:
@@ -312,6 +289,7 @@ DISTRIBUTIONS
       DBD::Pg 0
       ExtUtils::MakeMaker 0
       Mojolicious 6.0
+      perl 5.010001
   Mojolicious-6.03
     pathname: S/SR/SRI/Mojolicious-6.03.tar.gz
     provides:
@@ -427,6 +405,7 @@ DISTRIBUTIONS
       IO::Socket::IP 0.26
       Pod::Simple 3.09
       Time::Local 1.2
+      perl 5.010001
   Mozilla-CA-20141217
     pathname: A/AB/ABH/Mozilla-CA-20141217.tar.gz
     provides:
@@ -463,28 +442,6 @@ DISTRIBUTIONS
       Test::Builder 0.86
       Test::More 0.47
       Test::Tester 0.107
-      perl 5.006
-  Test-Simple-1.001014
-    pathname: E/EX/EXODIST/Test-Simple-1.001014.tar.gz
-    provides:
-      Test::Builder 1.001014
-      Test::Builder::IO::Scalar 2.113
-      Test::Builder::Module 1.001014
-      Test::Builder::Tester 1.28
-      Test::Builder::Tester::Color 1.290001
-      Test::Builder::Tester::Tie 1.28
-      Test::More 1.001014
-      Test::Simple 1.001014
-      Test::Tester 0.114
-      Test::Tester::Capture undef
-      Test::Tester::CaptureRunner undef
-      Test::Tester::Delegate undef
-      Test::use::ok 0.16
-      ok 0.16
-    requirements:
-      ExtUtils::MakeMaker 0
-      Scalar::Util 1.13
-      Test::Harness 2.03
       perl 5.006
   common-sense-3.73
     pathname: M/ML/MLEHMANN/common-sense-3.73.tar.gz
