@@ -172,7 +172,7 @@ sub remove_whitelist( $champ_key, $role ) {
 }
 
 sub save_user( $user ) {
-    $pg->db->query("update summoner set (pw, pwhash, roles, champions) = (?, ?, ?, ?) where name = ?",
+    $pg->db->query("update summoner set (pw, pwhash, roles, champions) = (?, ?, ?::jsonb, ?::jsonb) where name = ?",
         $user->{pw}, $user->{pwhash}, {json => $user->{roles}}, {json => $user->{champions}}, $user->{name});
 }
 
@@ -364,6 +364,32 @@ get ( '/migrate_lists' => sub ($c) {
     }
 
     $c->redirect_to('championdb');
+});
+
+get ( '/migrate_users' => sub ($c) {
+    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
+
+    my $champs = get_champs();
+
+    my $ids = { map { $_->{key} => $_->{id} } @$champs };
+
+    for my $user (@users) {
+        my $u = read_db("$user.db");
+
+        $u->{pw} = (keys $u->{pw}->%*)[0];
+        $u->{pwhash} = (keys $u->{pwhash}->%*)[0] if exists $u->{pwhash};
+        $u->{champions} = { map { $ids->{$_} => undef } (keys $u->{owns}->%*) };
+        $u->{roles} = { map { $_ => undef } (keys $u->{can}->%*) };
+
+        $pg->db->query("insert into summoner (name, pw, pwhash, champions, roles) values (?, ?, ?, ?::jsonb, ?::jsonb)",
+            $user,
+            $u->{pw},
+            $u->{pwhash},
+            {json => $u->{champions}},
+            {json => $u->{roles}});
+    }
+
+    $c->redirect_to('home');
 });
 
 get( "/champion/:champion/:role/blacklist" => sub ($c) {
