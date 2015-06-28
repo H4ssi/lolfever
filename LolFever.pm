@@ -104,6 +104,9 @@ sub pg_init() {
     pg_setup($data, 5, sub {
         $pg->db->query("alter table champion add blacklist jsonb not null default '{}'::jsonb, add whitelist jsonb not null default '{}'::jsonb");
     });
+    pg_setup($data, 6, sub {
+        $pg->db->query('create table summoner (id serial primary key, name text unique not null, pw text not null, pwhash text)');
+    });
 }
 
 sub store_champs( $champs ) {
@@ -162,6 +165,18 @@ sub remove_whitelist( $champ_key, $role ) {
     alter_anylist( $champ_key, $role, 'whitelist', 'except' );
 }
 
+sub save_user( $user ) {
+    $pg->db->query("update summoner set (pw, pwhash) = (?, ?) where name = ?",
+        $user->{pw}, $user->{pwhash}, $user->{name});
+}
+
+sub get_users() {
+    return $pg->db->query('select * from summoner order by name')->hashes;
+}
+
+sub get_user( $name ) {
+    return $pg->db->query('select * from summoner where name = ?', $name)->hash;
+}
 
 sub write_db( $file, $data ) {
     open(my $f, '>', $file);
@@ -379,40 +394,38 @@ get "/championdb" => sub ($c) {
 
 get("/user/:name" => sub ($c) {
     my $name = $c->param('name');
-    unless( defined $name && $name =~ /\w/xms && -f "$name.db" ) {
-        return $c->render( text => "No such user: $name" );
-    }
+    return $c->render( text => "No user" ) unless defined $name;
+
+    my $user = get_user( $name );
+    return $c->render( text => "No such user: $name", user => $name, mode => 'profile' ) unless $user;
 
     my $data = read_db("$name.db");
 
-    my $pw_change_required = !(exists $data->{'pwhash'});
+    my $pw_change_required = !(defined $user->{'pwhash'});
 
     $c->render($c->param('edit') ? 'user_edit' : 'user', user => $name, champs => get_champs(), roles => [ sort @ROLES ], owns => $data->{'owns'}, can => $data->{'can'}, pw_change_required => $pw_change_required, mode => 'profile' );
 })->name('user');
 
 post "/user/:name" => sub ($c) {
     my $name = $c->param('name');
+    return $c->render( text => "No user" ) unless defined $name;
 
-    unless( defined $name && $name =~ /\w/xms && -f "$name.db" ) {
-        return $c->render( text => "No such user: $name", user => $name, mode => 'profile' );
-    }
-
-    my $data = read_db("$name.db");
+    my $user = get_user( $name );
+    return $c->render( text => "No such user: $name", user => $name, mode => 'profile' ) unless $user;
     
-    unless( $data->{'pw'} || $data->{'pwhash'} ) {
-        return $c->render( text => "User deactivated: $name", user => $name, mode => 'profile' );
-    }
+    return $c->render( text => "User deactivated: $name", user => $name, mode => 'profile' ) unless $user->{pw} || $user->{pwhash};
+
+    my $data = read_db("$name.db");    
 
     my $pw = $c->param('current_pw');
     my $hash;
     my $pw_change_required = 0;
     my $authenticated = 0;
 
-    if( $data->{'pwhash'} ) {
-        ($hash) = keys %{ $data->{'pwhash'} };
+    if( $user->{pwhash} ) {
+        $hash = $user->{pwhash};
     } else {
-        my ($plain) = keys %{ $data->{'pw'} };
-        $hash = scrypt_hash($plain, random_bytes(32));
+        $hash = scrypt_hash($user->{pw}, random_bytes(32));
         $pw_change_required = 1;
     }
 
@@ -422,31 +435,26 @@ post "/user/:name" => sub ($c) {
         $authenticated = $hash eq Digest->new('SHA-512')->add($legacy_sha_salt)->add($pw)->b64digest;
     }
 
-    unless( $authenticated ) {
-        return $c->render( text => 'invalid pw', user => $name, mode => 'profile' );
-    }
+    return $c->render( text => 'invalid pw', user => $name, mode => 'profile' ) unless $authenticated;
 
-    if( $pw_change_required && !$c->param('new_pw_1') ) {
-        return $c->render( text => 'must change pw', user => $name, mode => 'profile' );
-    }
+    return $c->render( text => 'must change pw', user => $name, mode => 'profile' ) if $pw_change_required && !$c->param('new_pw_1');
 
     if( $c->param('new_pw_1') ) {
-        unless( $c->param('new_pw_1') eq $c->param('new_pw_2') ) {
-            return $c->render( text => 'new pws did not match', user => $name, mode => 'profile' );
-        } else {
-            $data->{'pwhash'} = { scrypt_hash($c->param('new_pw_1'), random_bytes(32)) => 1 };
-        }
+        return $c->render( text => 'new pws did not match', user => $name, mode => 'profile' ) unless $c->param('new_pw_1') eq $c->param('new_pw_2');
+        
+        $user->{pwhash} = scrypt_hash($c->param('new_pw_1'), random_bytes(32));
     } elsif( $hash !~ / \A SCRYPT: /xms ) {
-        $data->{'pwhash'} = { scrypt_hash($pw, random_bytes(32)) => 1 };
+        $user->{pwhash} = scrypt_hash($pw, random_bytes(32));
     }
     
-    $data->{'can'} = { map { $_ => !!$c->param("can:$_") } @ROLES };
+    $data->{can} = { map { $_ => !!$c->param("can:$_") } @ROLES };
 
     my $champs = get_champs();
 
-    $data->{'owns'} = { map { $_->{key} => !!$c->param("owns:$_->{key}") } @$champs };
+    $data->{owns} = { map { $_->{key} => !!$c->param("owns:$_->{key}") } @$champs };
 
     write_db("$name.db", $data);
+    save_user( $user );
 
     return $c->redirect_to;
 };
@@ -454,7 +462,7 @@ post "/user/:name" => sub ($c) {
 sub roll_form($c) {
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
-    return $c->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champs => get_champs(), players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
+    return $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => get_champs(), players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
 };
 
 get "" => \&roll_form;
@@ -550,7 +558,7 @@ sub roll( $c, $trolling = '' ) {
 
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
-    return $c->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
+    return $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
                            roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $c->dumper(\@fails) : undef), mode => 'roll' );
 }
 
@@ -654,8 +662,8 @@ __DATA__
     % for my $user (@$users) {
         <div class="checkbox">
             <label>
-                %= input_tag "players", type => 'checkbox', value => $user, $user ~~ @$players ? ( checked => 'checked' ) : ()
-                %= link_to $user => 'user' => { name => $user }
+                %= input_tag "players", type => 'checkbox', value => $user->{name}, $user->{name} ~~ @$players ? ( checked => 'checked' ) : ()
+                %= link_to $user->{name} => 'user' => { name => $user->{name} }
             </label>
         </div>
     % }
