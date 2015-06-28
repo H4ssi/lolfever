@@ -483,56 +483,58 @@ sub select_random( @values ) {
     return @values[$ran, @other];
 }
 
-sub all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
+sub all_options( $db, $user, $tabu_roles, $tabu_champions ) {
+    my @tabu_champion_ids = map { $_->{id} } @$tabu_champions;
     return map {
         my $champion = $_;
-        if ( ( $user->{'owns'}->{$champion} || exists $free->{$champion} ) && !( $champion ~~ @$tabu_champions ) ) {
+        if ( ( exists $user->{champions}{$champion->{id}} || $champion->{free} ) && !( $champion->{id} ~~ @tabu_champion_ids ) ) {
             map {
                 my $role = $_;
-                if ( $user->{'can'}->{$role} && !( $role ~~ @$tabu_roles ) ) {
+                if ( exists $user->{roles}{$role} && !( $role ~~ @$tabu_roles ) ) {
                     { champion => $champion, role => $role };
                 } else { (); }
-            } keys %{ $db->{$champion} };
+            } keys $db->{$champion->{id}}{effective_roles}->%*;
         } else { (); }
-    } keys %$db;
+    } values %$db;
 }
 
 sub combine_blacklist_whitelist( $champs ) {
     return { map { 
         my $champ = $_;
-        ( $champ->{key} => { map {
-            my $role = $_;
-            if ( ( exists $champ->{roles}{$role} || exists $champ->{whitelist}{$role} ) && !exists $champ->{blacklist}{$role} ) {
-                ( $role => undef );
-            } else { (); } 
-        } @ROLES } );
+        ( $champ->{id} => { 
+            %$champ,
+            effective_roles => { map {
+                my $role = $_;
+                if ( ( exists $champ->{roles}{$role} || exists $champ->{whitelist}{$role} ) && !exists $champ->{blacklist}{$role} ) {
+                    ( $role => undef );
+                } else { 
+                    (); 
+                } 
+            } @ROLES } } );
     } @$champs };
 }
 
 sub trollify( $db ) {
-    my $troll_db;
-
     for my $champ ( keys %$db ) {
-        my @roles = keys %{ $db->{$champ} };
+        my @roles = keys $db->{$champ}{effective_roles}->%*;
         push @roles, 'adcarry', 'support' if 'adcarry' ~~ @roles || 'support' ~~ @roles; # combine bot lane :)
+        my @troll_roles = grep { !( $_ ~~ @roles ) } @ROLES;
 
-        for my $troll_role ( grep { !( $_ ~~ @roles ) } @ROLES ) {
-            $troll_db->{$champ}{$troll_role} = undef;
-        }
+        $db->{$champ}{effective_roles} = { map { $_ => undef } @troll_roles };
     }
 
-    return $troll_db;
+    return $db;
 }
 
 sub roll( $c, $trolling = '' ) {
-    my @players = grep { $_ } @{ $c->every_param('players') };
-    my @woroles = grep { $_ } @{ $c->every_param('woroles') };
-    my @wochampions = grep { $_ } @{ $c->every_param('wochampions') };
+    my @players = grep { $_ } $c->every_param('players')->@*;
+    my @woroles = grep { $_ } $c->every_param('woroles')->@*;
+    my @wochampionkeys = grep { $_ } $c->every_param('wochampions')->@*;
     
-    my %player_specs = map { ( $_ => read_db("$_.db") ) } @players;
+    my %player_specs = map { ( $_ => get_user($_) ) } @players;
 
     my $champs = get_champs();
-    my $free = { map { $_->{key} => undef } (grep { $_->{free} } @$champs) };
+    my @wochampions = grep { $_->{key} ~~ @wochampionkeys } @$champs;
 
     my $db = combine_blacklist_whitelist( $champs );
     $db = trollify( $db ) if $trolling;
@@ -549,7 +551,7 @@ sub roll( $c, $trolling = '' ) {
         while( scalar @u ) {
             (my $user, @u) = select_random(@u);
 
-            my @options = all_options($db, $player_specs{$user}, $free, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
+            my @options = all_options($db, $player_specs{$user}, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{champion} } values %roll ]);
             
             unless( scalar @options ) {
                 push @fails, { $user => { %roll } };
@@ -564,7 +566,7 @@ sub roll( $c, $trolling = '' ) {
 
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
-    return $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
+    return $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampionkeys, 
                            roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $c->dumper(\@fails) : undef), mode => 'roll' );
 }
 
@@ -656,7 +658,7 @@ __DATA__
 % if( defined $roll ) {
     <dl class="well well-sm dl-horizontal">
     % for my $player ( sort keys %$roll ) {
-        <dt><%= $player %></dt><dd><%= $roll->{$player}->{'champion'} %> (<%= $roll->{$player}->{'role'} %>)</dd>
+        <dt><%= $player %></dt><dd><%= $roll->{$player}{champion}{name} %> (<%= $roll->{$player}{role} %>)</dd>
     % }
     </dl>
 % }
