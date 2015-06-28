@@ -130,6 +130,10 @@ sub store_champs( $champs ) {
     )->wait;
 }
 
+sub get_champs() {
+    return $pg->db->query('select * from champion order by name')->expand->hashes;
+}
+
 sub write_db( $file, $data ) {
     open(my $f, '>', $file);
 
@@ -270,11 +274,12 @@ post("/championdb" => sub ($c) {
             }
 
             store_champs($champs);
+            my @sorted_champs = sort { $a->{name} cmp $b->{name} } (values %$champs);
 
             write_db('champions.db', $db);
             write_db('free.db', $free);
 
-            $c->render( 'championdb', errors => ( @errors ? \@errors : undef ), db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
+            $c->render( 'championdb', errors => ( @errors ? \@errors : undef ), champs => \@sorted_champs, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
         }
     );
 })->name('championdb');
@@ -320,10 +325,7 @@ get( "/champion/:champion/:role/no_whitelist" => sub ($c) {
 })->name('no_whitelist');
 
 get "/championdb" => sub ($c) {
-    my $db = read_db('champions.db');
-    my $free = read_db('free.db');
-
-    $c->render( 'championdb', errors => undef, db => $db, free => $free, blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
+    $c->render( 'championdb', errors => undef, champs => get_champs(), blacklist => read_db('blacklist.db'), whitelist => read_db('whitelist.db'), updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
 };
 
 get("/user/:name" => sub ($c) {
@@ -770,27 +772,27 @@ __DATA__
 % }
 
 <table class="table table-hover table-condensed champion-table"><tbody>
-    % for my $champ (sort keys %$db) {
+    % for my $champ (@$champs) {
         <tr>
             <th> 
-                <%= $champ %>
-                % if( $free->{$champ} ) {
+                <%= $champ->{name} %>
+                % if( $champ->{free} ) {
                     <span class="label label-info">free</span>
                 % }
             </th>
             % for my $role ( @$roles ) {
                 <td>
-                    % if( $db->{$champ}->{$role} ) {
-                        %= link_to $blacklist->{$champ}->{$role} ? 'no_blacklist' : 'blacklist' => { champion => $champ, role => $role } => begin
-                            % if( $blacklist->{$champ}->{$role} ) {
+                    % if( exists $champ->{roles}{$role} ) {
+                        %= link_to $blacklist->{$champ->{key}}{$role} ? 'no_blacklist' : 'blacklist' => { champion => $champ->{key}, role => $role } => begin
+                            % if( $blacklist->{$champ->{key}}{$role} ) {
                                 <s><%= $role %></s>
                             % } else {
                                 <%= $role %>
                             % }
                         % end
                     % } else {
-                        %= link_to $whitelist->{$champ}->{$role} ? 'no_whitelist' : 'whitelist' => { champion => $champ, role => $role } => begin
-                            % if( $whitelist->{$champ}->{$role} ) {
+                        %= link_to $whitelist->{$champ->{key}}{$role} ? 'no_whitelist' : 'whitelist' => { champion => $champ->{key}, role => $role } => begin
+                            % if( $whitelist->{$champ->{key}}{$role} ) {
                                 <u><%= $role %></u>
                             % } else {
                                 <span class="non-role"><%= $role %></span>
