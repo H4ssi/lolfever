@@ -405,11 +405,7 @@ post "/user/:name" => sub ($c) {
 sub roll_form($c) {
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
-    my $db = read_db('champions.db');
-
-    my @champions = keys( %$db );
-
-    return $c->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
+    return $c->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champs => get_champs(), players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
 };
 
 get "" => \&roll_form;
@@ -427,7 +423,7 @@ sub select_random( @values ) {
 sub all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
     return map {
         my $champion = $_;
-        if ( ( $user->{'owns'}->{$champion} || $champion ~~ @$free ) && !( $champion ~~ @$tabu_champions ) ) {
+        if ( ( $user->{'owns'}->{$champion} || exists $free->{$champion} ) && !( $champion ~~ @$tabu_champions ) ) {
             map {
                 my $role = $_;
                 if ( $user->{'can'}->{$role} && !( $role ~~ @$tabu_roles ) ) {
@@ -438,16 +434,16 @@ sub all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
     } keys %$db;
 }
 
-sub combine_blacklist_whitelist( $db, $blacklist, $whitelist ) {
+sub combine_blacklist_whitelist( $champs, $blacklist, $whitelist ) {
     return { map { 
         my $champ = $_;
-        ( $champ => { map {
+        ( $champ->{key} => { map {
             my $role = $_;
-            if ( ( $db->{$champ}->{$role} || $whitelist->{$champ}->{$role} ) && !$blacklist->{$champ}->{$role} ) {
-                ( $role => 1 );
+            if ( ( exists $champ->{roles}{$role} || $whitelist->{$champ->{key}}{$role} ) && !$blacklist->{$champ->{key}}{$role} ) {
+                ( $role => undef );
             } else { (); } 
         } @ROLES } );
-    } keys %$db };
+    } @$champs };
 }
 
 sub trollify( $db ) {
@@ -458,7 +454,7 @@ sub trollify( $db ) {
         push @roles, 'adcarry', 'support' if 'adcarry' ~~ @roles || 'support' ~~ @roles; # combine bot lane :)
 
         for my $troll_role ( grep { !( $_ ~~ @roles ) } @ROLES ) {
-            $troll_db->{$champ}->{$troll_role} = 1;
+            $troll_db->{$champ}{$troll_role} = undef;
         }
     }
 
@@ -472,10 +468,10 @@ sub roll( $c, $trolling = '' ) {
     
     my %player_specs = map { ( $_ => read_db("$_.db") ) } @players;
 
-    my $db = read_db('champions.db');
-    my @free = keys %{ read_db('free.db') };
+    my $champs = get_champs();
+    my $free = { map { $_->{key} => undef } (grep { $_->{free} } @$champs) };
 
-    $db = combine_blacklist_whitelist( $db, read_db('blacklist.db'), read_db('whitelist.db') );
+    my $db = combine_blacklist_whitelist( $champs, read_db('blacklist.db'), read_db('whitelist.db') );
     $db = trollify( $db ) if $trolling;
     
     my @fails;
@@ -490,7 +486,7 @@ sub roll( $c, $trolling = '' ) {
         while( scalar @u ) {
             (my $user, @u) = select_random(@u);
 
-            my @options = all_options($db, $player_specs{$user}, \@free, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
+            my @options = all_options($db, $player_specs{$user}, $free, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{'champion'} } values %roll ]);
             
             unless( scalar @options ) {
                 push @fails, { $user => { %roll } };
@@ -505,9 +501,7 @@ sub roll( $c, $trolling = '' ) {
 
     my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
-    my @champions = keys( %$db );
-
-    return $c->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champions => [ sort @champions ], players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
+    return $c->render( 'roll', users => [ sort @users ], roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampions, 
                            roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $c->dumper(\@fails) : undef), mode => 'roll' );
 }
 
@@ -635,12 +629,12 @@ __DATA__
     % for my $i (0..3) {
         <select name="wochampions" class="form-control">
             <option value=""></option>
-            % for my $champ (@$champions) {
-                <option value="<%= $champ %>"
-                    % if( $champ eq ($wochampions->[$i] // '') ) {
+            % for my $champ (@$champs) {
+                <option value="<%= $champ->{key} %>"
+                    % if( $champ->{key} eq ($wochampions->[$i] // '') ) {
                         selected="selected"
                     % }
-                ><%= $champ %></option>
+                ><%= $champ->{name} %></option>
             % }
         </select>
     % }
