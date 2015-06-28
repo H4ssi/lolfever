@@ -466,12 +466,12 @@ sub all_options( $db, $user, $free, $tabu_roles, $tabu_champions ) {
     } keys %$db;
 }
 
-sub combine_blacklist_whitelist( $champs, $blacklist, $whitelist ) {
+sub combine_blacklist_whitelist( $champs ) {
     return { map { 
         my $champ = $_;
         ( $champ->{key} => { map {
             my $role = $_;
-            if ( ( exists $champ->{roles}{$role} || $whitelist->{$champ->{key}}{$role} ) && !$blacklist->{$champ->{key}}{$role} ) {
+            if ( ( exists $champ->{roles}{$role} || exists $champ->{whitelist}{$role} ) && !exists $champ->{blacklist}{$role} ) {
                 ( $role => undef );
             } else { (); } 
         } @ROLES } );
@@ -503,7 +503,7 @@ sub roll( $c, $trolling = '' ) {
     my $champs = get_champs();
     my $free = { map { $_->{key} => undef } (grep { $_->{free} } @$champs) };
 
-    my $db = combine_blacklist_whitelist( $champs, read_db('blacklist.db'), read_db('whitelist.db') );
+    my $db = combine_blacklist_whitelist( $champs );
     $db = trollify( $db ) if $trolling;
     
     my @fails;
