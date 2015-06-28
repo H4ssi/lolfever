@@ -101,6 +101,9 @@ sub pg_init() {
     pg_setup($data, 4, sub {
         $pg->db->query("alter table champion add roles jsonb not null default '{}'::jsonb");
     });
+    pg_setup($data, 5, sub {
+        $pg->db->query("alter table champion add blacklist jsonb not null default '{}'::jsonb, add whitelist jsonb not null default '{}'::jsonb");
+    });
 }
 
 sub store_champs( $champs ) {
@@ -133,6 +136,32 @@ sub store_champs( $champs ) {
 sub get_champs() {
     return $pg->db->query('select * from champion order by name')->expand->hashes;
 }
+
+sub alter_anylist( $champ_key, $role, $list_name, $op ) {
+    $pg->db->query("update champion
+                    set $list_name = (select coalesce(json_object_agg(key, value), '{}')::jsonb
+                                      from (select * from jsonb_each($list_name)
+                                            $op
+                                            select ?, 'null'::jsonb) i)
+                    where key = ?", $role, $champ_key);
+}
+
+sub add_blacklist( $champ_key, $role ) {
+    alter_anylist( $champ_key, $role, 'blacklist', 'union' );
+}
+
+sub add_whitelist( $champ_key, $role ) {
+    alter_anylist( $champ_key, $role, 'whitelist', 'union' );
+}
+
+sub remove_blacklist( $champ_key, $role ) {
+    alter_anylist( $champ_key, $role, 'blacklist', 'except' );
+}
+
+sub remove_whitelist( $champ_key, $role ) {
+    alter_anylist( $champ_key, $role, 'whitelist', 'except' );
+}
+
 
 sub write_db( $file, $data ) {
     open(my $f, '>', $file);
@@ -302,24 +331,28 @@ sub manage_whitelist( $champion, $role, $listed ) {
 
 get( "/champion/:champion/:role/blacklist" => sub ($c) {
     manage_blacklist( $c->param('champion'), $c->param('role'), 1 );
+    add_blacklist( $c->param('champion'), $c->param('role') );
     
     $c->redirect_to('championdb');
 })->name('blacklist');
 
 get( "/champion/:champion/:role/no_blacklist" => sub ($c) {
     manage_blacklist( $c->param('champion'), $c->param('role'), 0 );
+    remove_blacklist( $c->param('champion'), $c->param('role') );
     
     $c->redirect_to('championdb');
 })->name('no_blacklist');
 
 get( "/champion/:champion/:role/whitelist" => sub ($c) {
     manage_whitelist( $c->param('champion'), $c->param('role'), 1 );
+    add_whitelist( $c->param('champion'), $c->param('role') );
     
     $c->redirect_to('championdb');
 })->name('whitelist');
 
 get( "/champion/:champion/:role/no_whitelist" => sub ($c) {
     manage_whitelist( $c->param('champion'), $c->param('role'), 0 );
+    remove_whitelist( $c->param('champion'), $c->param('role') );
     
     $c->redirect_to('championdb');
 })->name('no_whitelist');
