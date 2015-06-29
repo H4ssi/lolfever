@@ -81,7 +81,7 @@ sub pg_setup ( $data, $version, $action ) {
 
 sub pg_init() {
     $pg->db->query('create table if not exists meta (id integer primary key check (id = 0), data jsonb)');
-    my $data = $pg->db->query('select data from meta')->expand->array;
+    my $data = $pg->db->query('select data from meta')->expand->arrays->first;
     unless ($data) {
         $data = [{ schema_version => 0 }];
         $pg->db->query('insert into meta (id, data) values (0, ?::jsonb)', { json => $data->[0] });        
@@ -181,7 +181,7 @@ sub get_users() {
 }
 
 sub get_user( $name ) {
-    return $pg->db->query('select * from summoner where name = ?', $name)->expand->hash;
+    return $pg->db->query('select * from summoner where name = ?', $name)->expand->hashes->first;
 }
 
 sub write_db( $file, $data ) {
