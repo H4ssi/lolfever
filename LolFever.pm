@@ -175,9 +175,10 @@ sub remove_whitelist( $champ_key, $role, $cb ) {
     alter_anylist( $champ_key, $role, $cb, 'whitelist', 'except' );
 }
 
-sub save_user( $user ) {
+sub save_user( $user, $cb ) {
     $pg->db->query("update summoner set (pw, pwhash, roles, champions) = (?, ?, ?::jsonb, ?::jsonb) where name = ?",
-        $user->{pw}, $user->{pwhash}, {json => $user->{roles}}, {json => $user->{champions}}, $user->{name});
+        $user->{pw}, $user->{pwhash}, {json => $user->{roles}}, {json => $user->{champions}}, $user->{name},
+        sub (@) { $cb->(undef); });
 }
 
 sub get_users() {
@@ -520,8 +521,9 @@ post "/user/:name" => sub ($c) {
             $user->{champions} = { map { $_->{id} => undef } (grep { $c->param("owns:$_->{key}") } @$champs) };
 
             write_db("$name.db", $data);
-            save_user( $user );
-
+            save_user( $user, $d->begin );
+        },
+        sub($d) {
             $c->redirect_to;
         });
 };
