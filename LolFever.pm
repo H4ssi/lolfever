@@ -570,7 +570,6 @@ sub roll( $c, $trolling = '' ) {
 
             my %roll;
             for (1..$TRIES) {
-                undef %roll;
                 my @u = @players;
 
                 while( scalar @u ) {
@@ -586,7 +585,8 @@ sub roll( $c, $trolling = '' ) {
                     $roll{$user} = $options[ int(rand(scalar @options)) ];
                 }
 
-                last if( ( scalar ( keys %roll ) ) == ( scalar @players ) );
+                last if ( scalar ( keys %roll ) ) == ( scalar @players );
+                %roll = ();
             }
 
             my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
