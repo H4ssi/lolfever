@@ -148,29 +148,31 @@ sub get_champs($cb) {
     $pg->db->query('select * from champion order by name', sub ($,$,$r) { $cb->(undef, $r->expand->hashes); });
 }
 
-sub alter_anylist( $champ_key, $role, $list_name, $op ) {
+sub alter_anylist( $champ_key, $role, $cb, $list_name, $op ) {
     $pg->db->query("update champion
                     set $list_name = (select coalesce(json_object_agg(key, value), '{}')::jsonb
                                       from (select * from jsonb_each($list_name)
                                             $op
                                             select ?, 'null'::jsonb) i)
-                    where key = ?", $role, $champ_key);
+                    where key = ?", 
+                    $role, $champ_key,
+                    sub (@) { $cb->(undef) });
 }
 
-sub add_blacklist( $champ_key, $role ) {
-    alter_anylist( $champ_key, $role, 'blacklist', 'union' );
+sub add_blacklist( $champ_key, $role, $cb ) {
+    alter_anylist( $champ_key, $role, $cb, 'blacklist', 'union' );
 }
 
-sub add_whitelist( $champ_key, $role ) {
-    alter_anylist( $champ_key, $role, 'whitelist', 'union' );
+sub add_whitelist( $champ_key, $role, $cb ) {
+    alter_anylist( $champ_key, $role, $cb, 'whitelist', 'union' );
 }
 
-sub remove_blacklist( $champ_key, $role ) {
-    alter_anylist( $champ_key, $role, 'blacklist', 'except' );
+sub remove_blacklist( $champ_key, $role, $cb ) {
+    alter_anylist( $champ_key, $role, $cb, 'blacklist', 'except' );
 }
 
-sub remove_whitelist( $champ_key, $role ) {
-    alter_anylist( $champ_key, $role, 'whitelist', 'except' );
+sub remove_whitelist( $champ_key, $role, $cb ) {
+    alter_anylist( $champ_key, $role, $cb, 'whitelist', 'except' );
 }
 
 sub save_user( $user ) {
@@ -359,14 +361,18 @@ get ( '/migrate_lists' => sub ($c) {
     for my $champ (keys %$b) {
         $champ = "monkeyking" if $champ eq "wukong";
         for my $role (keys $b->{$champ}->%*) {
-            add_blacklist( $champ, $role );
+            my $d = Mojo::IOLoop->delay;
+            add_blacklist( $champ, $role, $d->begin );
+            $d->wait;
         }
     }
     my $w = read_db('whitelist.db');
     for my $champ (keys %$w) {
         $champ = "monkeyking" if $champ eq "wukong";
         for my $role (keys $w->{$champ}->%*) {
-            add_whitelist( $champ, $role );
+            my $d = Mojo::IOLoop->delay;
+            add_whitelist( $champ, $role, $d->begin );
+            $d->wait;
         }
     }
 
@@ -406,30 +412,34 @@ get ( '/migrate_users' => sub ($c) {
 
 get( "/champion/:champion/:role/blacklist" => sub ($c) {
     manage_blacklist( $c->param('champion'), $c->param('role'), 1 );
-    add_blacklist( $c->param('champion'), $c->param('role') );
-    
-    $c->redirect_to('championdb');
+    $c->render_later;
+    $c->delay(
+        sub ($d) { add_blacklist( $c->param('champion'), $c->param('role'), $d->begin ); },
+        sub ($d) { $c->redirect_to('championdb'); });
 })->name('blacklist');
 
 get( "/champion/:champion/:role/no_blacklist" => sub ($c) {
     manage_blacklist( $c->param('champion'), $c->param('role'), 0 );
-    remove_blacklist( $c->param('champion'), $c->param('role') );
-    
-    $c->redirect_to('championdb');
+    $c->render_later;
+    $c->delay(
+        sub ($d) { remove_blacklist( $c->param('champion'), $c->param('role'), $d->begin ); },  
+        sub ($d) { $c->redirect_to('championdb'); });
 })->name('no_blacklist');
 
 get( "/champion/:champion/:role/whitelist" => sub ($c) {
     manage_whitelist( $c->param('champion'), $c->param('role'), 1 );
-    add_whitelist( $c->param('champion'), $c->param('role') );
-    
-    $c->redirect_to('championdb');
+    $c->render_later;
+    $c->delay(
+        sub ($d) { add_whitelist( $c->param('champion'), $c->param('role'), $d->begin ); },
+        sub ($d) { $c->redirect_to('championdb'); });
 })->name('whitelist');
 
 get( "/champion/:champion/:role/no_whitelist" => sub ($c) {
     manage_whitelist( $c->param('champion'), $c->param('role'), 0 );
-    remove_whitelist( $c->param('champion'), $c->param('role') );
-    
-    $c->redirect_to('championdb');
+    $c->render_later;
+    $c->delay(
+        sub ($d) { remove_whitelist( $c->param('champion'), $c->param('role'), $d->begin ); }, 
+        sub ($d) { $c->redirect_to('championdb'); });
 })->name('no_whitelist');
 
 get "/championdb" => sub ($c) {
