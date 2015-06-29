@@ -115,7 +115,7 @@ sub pg_init() {
     });
 }
 
-sub store_champs( $champs ) {
+sub store_champs( $champs, $cb ) {
     my $h = $pg->db;
     my $tx = $h->begin;
 
@@ -136,10 +136,12 @@ sub store_champs( $champs ) {
         }
     };
 
-    my $d = Mojo::IOLoop->delay(
+    Mojo::IOLoop->delay(
         (map { $handler->($_) } (values %$champs)),
-        sub (@) { $tx->commit; }
-    )->wait;
+        sub (@) {
+            $tx->commit;
+            $cb->(undef);
+        });
 }
 
 sub get_champs() {
@@ -219,6 +221,8 @@ sub read_db( $file ) {
 }
 
 post("/championdb" => sub ($c) {
+    my @errors;
+
     $c->render_later;
     $c->delay(
         sub ($d) {
@@ -229,7 +233,6 @@ post("/championdb" => sub ($c) {
             $c->ua->get('http://www.lolpro.com' => $d->begin);
         },
         sub ($d, $champions_tx, $static_tx, $champs_tx, $guides_tx, $roles_tx) {
-            my @errors;
 
             my $champions = $champions_tx->res->json->{'champions'};
             my $static = $static_tx->res->json->{'data'};
@@ -323,12 +326,13 @@ post("/championdb" => sub ($c) {
                 }
             }
 
-            store_champs($champs);
+            store_champs($champs, $d->begin);
 
             write_db('champions.db', $db);
             write_db('free.db', $free);
-
-            $c->render( 'championdb', errors => ( @errors ? \@errors : undef ), champs => get_champs(), updated => 1, roles => [ sort @ROLES ], mode => 'champions' );
+        },
+        sub ($d) {
+            $c->render('championdb', errors => ( @errors ? \@errors : undef ), champs => get_champs(), updated => 1, roles => [ sort @ROLES ], mode => 'champions');
         }
     );
 })->name('championdb');
