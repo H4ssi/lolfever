@@ -121,16 +121,16 @@ sub store_champs( $champs ) {
 
     my $handler = sub ($c) {
         return sub ($d, @) {
-                my $cb = $d->begin();
-                $h->query('insert into champion (id, key, name, free, roles) values (?, ?, ?, ?, ?::jsonb)',
-                    $c->{id}, $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} },
-                    sub ($, $err, @) {
-                        if ($err) {
-                            $h->query('update champion set (key, name, free, roles) = (?, ?, ?, ?::jsonb) where id = ?',
-                                $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} }, $c->{id},
-                                $cb);
-                        } else {
+                my $cb = $d->begin;
+                $h->query('update champion set (key, name, free, roles) = (?, ?, ?, ?::jsonb) where id = ? returning id',
+                    $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} }, $c->{id},
+                    sub ($, $, $r) {
+                        if ($r->arrays->size) {
                             $cb->();
+                        } else {
+                            $h->query('insert into champion (id, key, name, free, roles) values (?, ?, ?, ?, ?::jsonb)',
+                                $c->{id}, $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} },
+                                $cb);
                         }
                     });
         }
