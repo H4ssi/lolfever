@@ -144,8 +144,8 @@ sub store_champs( $champs, $cb ) {
         });
 }
 
-sub get_champs() {
-    return $pg->db->query('select * from champion order by name')->expand->hashes;
+sub get_champs($cb) {
+    $pg->db->query('select * from champion order by name', sub ($,$,$r) { $cb->(undef, $r->expand->hashes); });
 }
 
 sub alter_anylist( $champ_key, $role, $list_name, $op ) {
@@ -331,8 +331,9 @@ post("/championdb" => sub ($c) {
             write_db('champions.db', $db);
             write_db('free.db', $free);
         },
-        sub ($d) {
-            $c->render('championdb', errors => ( @errors ? \@errors : undef ), champs => get_champs(), updated => 1, roles => [ sort @ROLES ], mode => 'champions');
+        sub ($d) { get_champs($d->begin); },
+        sub ($d, $champs) {
+            $c->render('championdb', errors => ( @errors ? \@errors : undef ), champs => $champs, updated => 1, roles => [ sort @ROLES ], mode => 'champions');
         }
     );
 })->name('championdb');
@@ -373,29 +374,34 @@ get ( '/migrate_lists' => sub ($c) {
 });
 
 get ( '/migrate_users' => sub ($c) {
-    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
+    $c->render_later;
+    $c->delay(
+        sub ($d) {
+            get_champs($d->begin);
+        },
+        sub ($d, $champs) {
+            my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
-    my $champs = get_champs();
+            my $ids = { map { $_->{key} => $_->{id} } @$champs };
 
-    my $ids = { map { $_->{key} => $_->{id} } @$champs };
+            for my $user (@users) {
+                my $u = read_db("$user.db");
 
-    for my $user (@users) {
-        my $u = read_db("$user.db");
+                $u->{pw} = (keys $u->{pw}->%*)[0];
+                $u->{pwhash} = (keys $u->{pwhash}->%*)[0] if exists $u->{pwhash};
+                $u->{champions} = { map { $ids->{$_ eq "wukong" ? "monkeyking" : $_} => undef } (keys $u->{owns}->%*) };
+                $u->{roles} = { map { $_ => undef } (keys $u->{can}->%*) };
 
-        $u->{pw} = (keys $u->{pw}->%*)[0];
-        $u->{pwhash} = (keys $u->{pwhash}->%*)[0] if exists $u->{pwhash};
-        $u->{champions} = { map { $ids->{$_ eq "wukong" ? "monkeyking" : $_} => undef } (keys $u->{owns}->%*) };
-        $u->{roles} = { map { $_ => undef } (keys $u->{can}->%*) };
+                $pg->db->query("insert into summoner (name, pw, pwhash, champions, roles) values (?, ?, ?, ?::jsonb, ?::jsonb)",
+                    $user,
+                    $u->{pw},
+                    $u->{pwhash},
+                    {json => $u->{champions}},
+                    {json => $u->{roles}});
+            }
 
-        $pg->db->query("insert into summoner (name, pw, pwhash, champions, roles) values (?, ?, ?, ?::jsonb, ?::jsonb)",
-            $user,
-            $u->{pw},
-            $u->{pwhash},
-            {json => $u->{champions}},
-            {json => $u->{roles}});
-    }
-
-    $c->redirect_to('home');
+            $c->redirect_to('home');
+        });
 });
 
 get( "/champion/:champion/:role/blacklist" => sub ($c) {
@@ -427,7 +433,12 @@ get( "/champion/:champion/:role/no_whitelist" => sub ($c) {
 })->name('no_whitelist');
 
 get "/championdb" => sub ($c) {
-    $c->render( 'championdb', errors => undef, champs => get_champs(), updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
+    $c->render_later;
+    $c->delay(
+        sub($d) { get_champs($d->begin); },
+        sub($d, $champs) {
+            $c->render( 'championdb', errors => undef, champs => $champs, updated => 0, roles => [ sort @ROLES ], mode => 'champions' );
+        });
 };
 
 get("/user/:name" => sub ($c) {
@@ -439,7 +450,12 @@ get("/user/:name" => sub ($c) {
 
     my $pw_change_required = !(defined $user->{'pwhash'});
 
-    $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => get_champs(), roles => [ sort @ROLES ], pw_change_required => $pw_change_required, mode => 'profile' );
+    $c->render_later;
+    $c->delay(
+        sub($d) { get_champs($d->begin); },
+        sub($d, $champs) {
+            $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => $champs, roles => [ sort @ROLES ], pw_change_required => $pw_change_required, mode => 'profile' );
+        });
 })->name('user');
 
 post "/user/:name" => sub ($c) {
@@ -486,21 +502,27 @@ post "/user/:name" => sub ($c) {
     $data->{can} = { map { $_ => !!$c->param("can:$_") } @ROLES };
     $user->{roles} = { map { $_ => undef } (grep { $c->param("can:$_") } @ROLES) };
 
-    my $champs = get_champs();
+    $c->render_later;
+    $c->delay(
+        sub($d) { get_champs($d->begin); },
+        sub($d, $champs) {
+            $data->{owns} = { map { $_->{key} => !!$c->param("owns:$_->{key}") } @$champs };
+            $user->{champions} = { map { $_->{id} => undef } (grep { $c->param("owns:$_->{key}") } @$champs) };
 
-    $data->{owns} = { map { $_->{key} => !!$c->param("owns:$_->{key}") } @$champs };
-    $user->{champions} = { map { $_->{id} => undef } (grep { $c->param("owns:$_->{key}") } @$champs) };
+            write_db("$name.db", $data);
+            save_user( $user );
 
-    write_db("$name.db", $data);
-    save_user( $user );
-
-    return $c->redirect_to;
+            $c->redirect_to;
+        });
 };
 
 sub roll_form($c) {
-    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
-
-    return $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => get_champs(), players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
+    $c->render_later;
+    $c->delay(
+        sub ($d) { get_champs($d->begin); },
+        sub ($d, $champs) {
+            $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => $champs, players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
+        });
 };
 
 get "" => \&roll_form;
@@ -565,41 +587,45 @@ sub roll( $c, $trolling = '' ) {
     
     my %player_specs = map { ( $_ => get_user($_) ) } @players;
 
-    my $champs = get_champs();
-    my @wochampions = grep { $_->{key} ~~ @wochampionkeys } @$champs;
+    $c->render_later;
+    $c->delay(
+        sub ($d) { get_champs($d->begin); },
+        sub ($d, $champs) {
+            my @wochampions = grep { $_->{key} ~~ @wochampionkeys } @$champs;
 
-    my $db = combine_blacklist_whitelist( $champs );
-    $db = trollify( $db ) if $trolling;
-    
-    my @fails;
-
-    my $TRIES = 42;
-
-    my %roll;
-    for (1..$TRIES) {
-        undef %roll;
-        my @u = @players;
-
-        while( scalar @u ) {
-            (my $user, @u) = select_random(@u);
-
-            my @options = all_options($db, $player_specs{$user}, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{champion} } values %roll ]);
+            my $db = combine_blacklist_whitelist( $champs );
+            $db = trollify( $db ) if $trolling;
             
-            unless( scalar @options ) {
-                push @fails, { $user => { %roll } };
-                last;
+            my @fails;
+
+            my $TRIES = 42;
+
+            my %roll;
+            for (1..$TRIES) {
+                undef %roll;
+                my @u = @players;
+
+                while( scalar @u ) {
+                    (my $user, @u) = select_random(@u);
+
+                    my @options = all_options($db, $player_specs{$user}, [ @woroles, map { $_->{'role'} } values %roll ], [ @wochampions, map { $_->{champion} } values %roll ]);
+                    
+                    unless( scalar @options ) {
+                        push @fails, { $user => { %roll } };
+                        last;
+                    }
+
+                    $roll{$user} = $options[ int(rand(scalar @options)) ];
+                }
+
+                last if( ( scalar ( keys %roll ) ) == ( scalar @players ) );
             }
 
-            $roll{$user} = $options[ int(rand(scalar @options)) ];
-        }
+            my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
-        last if( ( scalar ( keys %roll ) ) == ( scalar @players ) );
-    }
-
-    my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
-
-    return $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampionkeys, 
-                           roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $c->dumper(\@fails) : undef), mode => 'roll' );
+            $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampionkeys, 
+                         roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $c->dumper(\@fails) : undef), mode => 'roll' );
+        });
 }
 
 get "/roll" => sub ($c) {
