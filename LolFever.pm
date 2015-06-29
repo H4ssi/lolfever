@@ -189,18 +189,6 @@ sub get_user( $name, $cb ) {
     return $pg->db->query('select * from summoner where name = ?', $name, sub ($,$,$r) { $cb->(undef, $r->expand->hashes->first); });
 }
 
-sub write_db( $file, $data ) {
-    open(my $f, '>', $file);
-
-    for my $key ( sort keys %$data ) {
-        for my $value ( sort keys %{ $data->{$key} } ) {
-            say {$f} "$key:$value" if $data->{$key}->{$value};
-        }
-    }
-
-    close $f;
-}
-
 sub read_db( $file ) {
     open(my $f, '<', $file);
 
@@ -247,9 +235,6 @@ post("/championdb" => sub ($c) {
                                                free => !!$_->{freeToPlay},
                                                roles => {},} } @$champions };
 
-            my $db = { map { (lc $static->{$_->{id}}->{key}) => {} } @$champions };
-            my $free = { map { (lc $static->{$_->{id}}->{key}) => { free => 1 } } (grep { $_->{freeToPlay} } @$champions) }; 
-
             for my $champ ( $champs_tx->res->dom->find('.champion-list tr')->@* ) {
                 my $a = $champ->at('.champion-list-icon > a');
                 if( defined $a ) {
@@ -270,7 +255,6 @@ post("/championdb" => sub ($c) {
                                 unless( defined $r ) {
                                     push @errors, "Do not know what role this is: '".($role->attr('data-sortval'))."' (champion is '$key')";
                                 } else {
-                                    $db->{$key}->{$r} = 1;
                                     $champs->{$ids->{$key}}{roles}{$r} = undef;
                                 }
                             }
@@ -295,7 +279,6 @@ post("/championdb" => sub ($c) {
                         unless( $r ) {
                             push @errors, "Do not know what role this is again: '$role' (champion is '$key')";
                         } else {
-                            $db->{$key}->{$r} = 1;
                             $champs->{$ids->{$key}}{roles}{$r} = undef;
                         }
                     }
@@ -314,11 +297,6 @@ post("/championdb" => sub ($c) {
                     unless( exists $ids->{$key} ) {
                         push @errors, "What is this for a champion: $key?";
                     } else {
-                        $db->{$key}->{'top'}     = 1 if 'game-champion-tag-top'      ~~ @classes;
-                        $db->{$key}->{'mid'}     = 1 if 'game-champion-tag-mid'      ~~ @classes;
-                        $db->{$key}->{'adcarry'} = 1 if 'game-champion-tag-duo'      ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
-                        $db->{$key}->{'support'} = 1 if 'game-champion-tag-support'  ~~ @classes;
-                        $db->{$key}->{'jungle'}  = 1 if 'game-champion-tag-jungler'  ~~ @classes;
                         $champs->{$ids->{$key}}{roles}{'top'}     = undef if 'game-champion-tag-top'      ~~ @classes;
                         $champs->{$ids->{$key}}{roles}{'mid'}     = undef if 'game-champion-tag-mid'      ~~ @classes;
                         $champs->{$ids->{$key}}{roles}{'adcarry'} = undef if 'game-champion-tag-duo'      ~~ @classes && !( 'game-champion-tag-support' ~~ @classes );
@@ -330,9 +308,6 @@ post("/championdb" => sub ($c) {
             }
 
             store_champs($champs, $d->begin);
-
-            write_db('champions.db', $db);
-            write_db('free.db', $free);
         },
         sub ($d) { get_champs($d->begin); },
         sub ($d, $champs) {
@@ -340,22 +315,6 @@ post("/championdb" => sub ($c) {
         }
     );
 })->name('championdb');
-
-sub manage_list( $file, $champion, $role, $listed ) {
-    my $list = read_db( $file );
-
-    $list->{ $champion }->{ $role } = $listed;
-
-    write_db( $file, $list );
-}
-
-sub manage_blacklist( $champion, $role, $listed ) {
-    manage_list( 'blacklist.db', $champion, $role, $listed );
-}
-
-sub manage_whitelist( $champion, $role, $listed ) {
-    manage_list( 'whitelist.db', $champion, $role, $listed );
-}
 
 get ( '/migrate_lists' => sub ($c) {
     my $b = read_db('blacklist.db');
@@ -412,7 +371,6 @@ get ( '/migrate_users' => sub ($c) {
 });
 
 get( "/champion/:champion/:role/blacklist" => sub ($c) {
-    manage_blacklist( $c->param('champion'), $c->param('role'), 1 );
     $c->render_later;
     $c->delay(
         sub ($d) { add_blacklist( $c->param('champion'), $c->param('role'), $d->begin ); },
@@ -420,7 +378,6 @@ get( "/champion/:champion/:role/blacklist" => sub ($c) {
 })->name('blacklist');
 
 get( "/champion/:champion/:role/no_blacklist" => sub ($c) {
-    manage_blacklist( $c->param('champion'), $c->param('role'), 0 );
     $c->render_later;
     $c->delay(
         sub ($d) { remove_blacklist( $c->param('champion'), $c->param('role'), $d->begin ); },  
@@ -428,7 +385,6 @@ get( "/champion/:champion/:role/no_blacklist" => sub ($c) {
 })->name('no_blacklist');
 
 get( "/champion/:champion/:role/whitelist" => sub ($c) {
-    manage_whitelist( $c->param('champion'), $c->param('role'), 1 );
     $c->render_later;
     $c->delay(
         sub ($d) { add_whitelist( $c->param('champion'), $c->param('role'), $d->begin ); },
@@ -436,7 +392,6 @@ get( "/champion/:champion/:role/whitelist" => sub ($c) {
 })->name('whitelist');
 
 get( "/champion/:champion/:role/no_whitelist" => sub ($c) {
-    manage_whitelist( $c->param('champion'), $c->param('role'), 0 );
     $c->render_later;
     $c->delay(
         sub ($d) { remove_whitelist( $c->param('champion'), $c->param('role'), $d->begin ); }, 
@@ -484,8 +439,6 @@ post "/user/:name" => sub ($c) {
     
             return $c->render( text => "User deactivated: $name", name => $name, mode => 'profile' ) unless $user->{pw} || $user->{pwhash};
 
-            my $data = read_db("$name.db");    
-
             my $pw = $c->param('current_pw');
             my $hash;
             my $pw_change_required = 0;
@@ -516,18 +469,13 @@ post "/user/:name" => sub ($c) {
                 $user->{pwhash} = scrypt_hash($pw, random_bytes(32));
             }
     
-            $data->{can} = { map { $_ => !!$c->param("can:$_") } @ROLES };
             $user->{roles} = { map { $_ => undef } (grep { $c->param("can:$_") } @ROLES) };
 
-            $d->pass($data);
             $d->pass($user);
             get_champs($d->begin); 
         },
-        sub($d, $data, $user, $champs) {
-            $data->{owns} = { map { $_->{key} => !!$c->param("owns:$_->{key}") } @$champs };
+        sub($d, $user, $champs) {
             $user->{champions} = { map { $_->{id} => undef } (grep { $c->param("owns:$_->{key}") } @$champs) };
-
-            write_db("$name.db", $data);
             save_user( $user, $d->begin );
         },
         sub($d) {
