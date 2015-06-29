@@ -181,8 +181,8 @@ sub save_user( $user, $cb ) {
         sub (@) { $cb->(undef); });
 }
 
-sub get_users() {
-    return $pg->db->query('select * from summoner order by name')->expand->hashes;
+sub get_users( $cb ) {
+    return $pg->db->query('select * from summoner order by name', sub ($,$,$r) { $cb->(undef, $r->expand->hashes); });
 }
 
 sub get_user( $name ) {
@@ -531,9 +531,9 @@ post "/user/:name" => sub ($c) {
 sub roll_form($c) {
     $c->render_later;
     $c->delay(
-        sub ($d) { get_champs($d->begin); },
-        sub ($d, $champs) {
-            $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => $champs, players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
+        sub ($d) { get_users($d->begin); get_champs($d->begin); },
+        sub ($d, $users, $champs) {
+            $c->render( 'roll', users => $users, roles => [ sort @ROLES ], champs => $champs, players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
         });
 };
 
@@ -601,8 +601,8 @@ sub roll( $c, $trolling = '' ) {
 
     $c->render_later;
     $c->delay(
-        sub ($d) { get_champs($d->begin); },
-        sub ($d, $champs) {
+        sub ($d) { get_users($d->begin); get_champs($d->begin); },
+        sub ($d, $users, $champs) {
             my @wochampions = grep { $_->{key} ~~ @wochampionkeys } @$champs;
 
             my $db = combine_blacklist_whitelist( $champs );
@@ -635,7 +635,7 @@ sub roll( $c, $trolling = '' ) {
 
             my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
-            $c->render( 'roll', users => get_users(), roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampionkeys, 
+            $c->render( 'roll', users => $users, roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampionkeys, 
                          roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $c->dumper(\@fails) : undef), mode => 'roll' );
         });
 }
