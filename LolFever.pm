@@ -185,8 +185,8 @@ sub get_users( $cb ) {
     return $pg->db->query('select * from summoner order by name', sub ($,$,$r) { $cb->(undef, $r->expand->hashes); });
 }
 
-sub get_user( $name ) {
-    return $pg->db->query('select * from summoner where name = ?', $name)->expand->hashes->first;
+sub get_user( $name, $cb ) {
+    return $pg->db->query('select * from summoner where name = ?', $name, sub ($,$,$r) { $cb->(undef, $r->expand->hashes->first); });
 }
 
 sub write_db( $file, $data ) {
@@ -456,15 +456,18 @@ get("/user/:name" => sub ($c) {
     my $name = $c->param('name');
     return $c->render( text => "No user" ) unless defined $name;
 
-    my $user = get_user( $name );
-    return $c->render( text => "No such user: $name", name => $name, mode => 'profile' ) unless $user;
-
-    my $pw_change_required = !(defined $user->{'pwhash'});
-
     $c->render_later;
     $c->delay(
-        sub($d) { get_champs($d->begin); },
-        sub($d, $champs) {
+        sub ($d) { get_user( $name, $d->begin ); },
+        sub ($d, $user) {
+            return $c->render( text => "No such user: $name", name => $name, mode => 'profile' ) unless $user;
+
+            $d->pass($user);
+            get_champs($d->begin);
+        },
+        sub($d, $user, $champs) {
+            my $pw_change_required = !(defined $user->{'pwhash'});
+
             $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => $champs, roles => [ sort @ROLES ], pw_change_required => $pw_change_required, mode => 'profile' );
         });
 })->name('user');
@@ -473,50 +476,54 @@ post "/user/:name" => sub ($c) {
     my $name = $c->param('name');
     return $c->render( text => "No user" ) unless defined $name;
 
-    my $user = get_user( $name );
-    return $c->render( text => "No such user: $name", name => $name, mode => 'profile' ) unless $user;
-    
-    return $c->render( text => "User deactivated: $name", name => $name, mode => 'profile' ) unless $user->{pw} || $user->{pwhash};
-
-    my $data = read_db("$name.db");    
-
-    my $pw = $c->param('current_pw');
-    my $hash;
-    my $pw_change_required = 0;
-    my $authenticated = 0;
-
-    if( $user->{pwhash} ) {
-        $hash = $user->{pwhash};
-    } else {
-        $hash = scrypt_hash($user->{pw}, random_bytes(32));
-        $pw_change_required = 1;
-    }
-
-    if( $hash =~ / \A SCRYPT: /xms ) {
-        $authenticated = scrypt_hash_verify( $pw, $hash );  
-    } else {
-        $authenticated = $hash eq Digest->new('SHA-512')->add($legacy_sha_salt)->add($pw)->b64digest;
-    }
-
-    return $c->render( text => 'invalid pw', name => $name, mode => 'profile' ) unless $authenticated;
-
-    return $c->render( text => 'must change pw', name => $name, mode => 'profile' ) if $pw_change_required && !$c->param('new_pw_1');
-
-    if( $c->param('new_pw_1') ) {
-        return $c->render( text => 'new pws did not match', name => $name, mode => 'profile' ) unless $c->param('new_pw_1') eq $c->param('new_pw_2');
-        
-        $user->{pwhash} = scrypt_hash($c->param('new_pw_1'), random_bytes(32));
-    } elsif( $hash !~ / \A SCRYPT: /xms ) {
-        $user->{pwhash} = scrypt_hash($pw, random_bytes(32));
-    }
-    
-    $data->{can} = { map { $_ => !!$c->param("can:$_") } @ROLES };
-    $user->{roles} = { map { $_ => undef } (grep { $c->param("can:$_") } @ROLES) };
-
     $c->render_later;
     $c->delay(
-        sub($d) { get_champs($d->begin); },
-        sub($d, $champs) {
+        sub($d) { get_user($name, $d->begin); },
+        sub($d, $user) {     
+            return $c->render( text => "No such user: $name", name => $name, mode => 'profile' ) unless $user;
+    
+            return $c->render( text => "User deactivated: $name", name => $name, mode => 'profile' ) unless $user->{pw} || $user->{pwhash};
+
+            my $data = read_db("$name.db");    
+
+            my $pw = $c->param('current_pw');
+            my $hash;
+            my $pw_change_required = 0;
+            my $authenticated = 0;
+
+            if( $user->{pwhash} ) {
+                $hash = $user->{pwhash};
+            } else {
+                $hash = scrypt_hash($user->{pw}, random_bytes(32));
+                $pw_change_required = 1;
+            }
+
+            if( $hash =~ / \A SCRYPT: /xms ) {
+                $authenticated = scrypt_hash_verify( $pw, $hash );  
+            } else {
+                $authenticated = $hash eq Digest->new('SHA-512')->add($legacy_sha_salt)->add($pw)->b64digest;
+            }
+
+            return $c->render( text => 'invalid pw', name => $name, mode => 'profile' ) unless $authenticated;
+
+            return $c->render( text => 'must change pw', name => $name, mode => 'profile' ) if $pw_change_required && !$c->param('new_pw_1');
+
+            if( $c->param('new_pw_1') ) {
+                return $c->render( text => 'new pws did not match', name => $name, mode => 'profile' ) unless $c->param('new_pw_1') eq $c->param('new_pw_2');
+                
+                $user->{pwhash} = scrypt_hash($c->param('new_pw_1'), random_bytes(32));
+            } elsif( $hash !~ / \A SCRYPT: /xms ) {
+                $user->{pwhash} = scrypt_hash($pw, random_bytes(32));
+            }
+    
+            $data->{can} = { map { $_ => !!$c->param("can:$_") } @ROLES };
+            $user->{roles} = { map { $_ => undef } (grep { $c->param("can:$_") } @ROLES) };
+
+            $d->pass($data);
+            $d->pass($user);
+            get_champs($d->begin); 
+        },
+        sub($d, $data, $user, $champs) {
             $data->{owns} = { map { $_->{key} => !!$c->param("owns:$_->{key}") } @$champs };
             $user->{champions} = { map { $_->{id} => undef } (grep { $c->param("owns:$_->{key}") } @$champs) };
 
@@ -596,13 +603,14 @@ sub roll( $c, $trolling = '' ) {
     my @players = grep { $_ } $c->every_param('players')->@*;
     my @woroles = grep { $_ } $c->every_param('woroles')->@*;
     my @wochampionkeys = grep { $_ } $c->every_param('wochampions')->@*;
-    
-    my %player_specs = map { ( $_ => get_user($_) ) } @players;
 
     $c->render_later;
     $c->delay(
         sub ($d) { get_users($d->begin); get_champs($d->begin); },
         sub ($d, $users, $champs) {
+            my $user_hash = { map { $_->{name} => $_ } @$users };
+            my %player_specs = map { $_ => $user_hash->{$_} } @players;
+
             my @wochampions = grep { $_->{key} ~~ @wochampionkeys } @$champs;
 
             my $db = combine_blacklist_whitelist( $champs );
