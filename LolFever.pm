@@ -687,11 +687,18 @@ __DATA__
 @@ roll.html.ep
 
 % if( defined $roll ) {
-    <dl class="well well-sm dl-horizontal">
-    % for my $player ( sort keys %$roll ) {
-        <dt><%= $player %></dt><dd><%= $roll->{$player}{champion}{name} %> (<%= $roll->{$player}{role} %>)</dd>
-    % }
-    </dl>
+    <div class="well well-sm" style="text-align: center">
+        <ul class="list-inline">
+        % for my $player ( sort keys %$roll ) {
+            <li style="width: 15%;">
+                <div><big><%= $player %></big></div>
+                <div><img src="http://ddragon.leagueoflegends.com/cdn/5.12.1/img/champion/<%= $roll->{$player}{champion}{image} %>" class="img-rounded"></div>
+                <div><%= $roll->{$player}{champion}{name} %></div>
+                <div><span class="label label-default"><%= $roll->{$player}{role} %></span></div>
+            </li>
+        % }
+        </ul>
+    </div>
 % }
 
 %= form_for url_for() => (method => 'POST') => begin
