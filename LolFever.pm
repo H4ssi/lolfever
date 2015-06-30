@@ -113,6 +113,10 @@ sub pg_init() {
     pg_setup($data, 8, sub {
         $pg->db->query("alter table summoner add champions jsonb not null default '{}'::jsonb");
     });
+    pg_setup($data, 9, sub {
+        $pg->db->query("alter table champion add image text not null default 'Unknown.png'");
+        $pg->db->query("alter table champion alter image drop default");
+    });
 }
 
 sub store_champs( $champs, $cb ) {
@@ -122,14 +126,14 @@ sub store_champs( $champs, $cb ) {
     my $handler = sub ($c) {
         return sub ($d, @) {
                 my $cb = $d->begin;
-                $h->query('update champion set (key, name, free, roles) = (?, ?, ?, ?::jsonb) where id = ? returning id',
-                    $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} }, $c->{id},
+                $h->query('update champion set (key, name, free, roles, image) = (?, ?, ?, ?::jsonb, ?) where id = ? returning id',
+                    $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} }, $c->{image}, $c->{id},
                     sub ($, $, $r) {
                         if ($r->arrays->size) {
                             $cb->();
                         } else {
-                            $h->query('insert into champion (id, key, name, free, roles) values (?, ?, ?, ?, ?::jsonb)',
-                                $c->{id}, $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} },
+                            $h->query('insert into champion (id, key, name, free, roles, image) values (?, ?, ?, ?, ?::jsonb, ?)',
+                                $c->{id}, $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} }, $c->{image},
                                 $cb);
                         }
                     });
@@ -218,7 +222,7 @@ post("/championdb" => sub ($c) {
     $c->delay(
         sub ($d) {
             $c->ua->get("https://euw.api.pvp.net/api/lol/euw/v1.2/champion?api_key=$lol_api_key" => $d->begin);
-            $c->ua->get("https://global.api.pvp.net/api/lol/static-data/euw/v1.2/champion?dataById=true&api_key=$lol_api_key" => $d->begin);
+            $c->ua->get("https://global.api.pvp.net/api/lol/static-data/euw/v1.2/champion?dataById=true&champData=image&api_key=$lol_api_key" => $d->begin);
             $c->ua->get('http://www.lolking.net/champions' => $d->begin);
             $c->ua->get('http://www.lolking.net/guides' => $d->begin);
             $c->ua->get('http://www.lolpro.com' => $d->begin);
@@ -233,6 +237,7 @@ post("/championdb" => sub ($c) {
                                                key => lc $static->{$_->{id}}{key},
                                                name => $static->{$_->{id}}{name},
                                                free => !!$_->{freeToPlay},
+                                               image => $static->{$_->{id}}{image}{full},
                                                roles => {},} } @$champions };
 
             for my $champ ( $champs_tx->res->dom->find('.champion-list tr')->@* ) {
