@@ -620,7 +620,7 @@ __DATA__
 
 @@ layouts/layout.html.ep
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <!--
   - LoLfever - random meta ftw
   - Copyright (C) 2013, 2015  Florian Hassanen
@@ -641,9 +641,17 @@ __DATA__
   - along with this program.  If not, see <http://www.gnu.org/licenses/>.
   -->
 <head>
-<title>LoL Fever</title>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoL Fever</title>
 <link href="<%= url_for '/css/bootstrap.min.css' %>" rel="stylesheet" media="screen">
+<!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+<!--[if lt IE 9]>
+  <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+  <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+<![endif]-->
 </head>
 <body>
 <div class="container">
@@ -686,14 +694,14 @@ __DATA__
 @@ roll.html.ep
 
 % if( defined $roll ) {
-    <div class="well well-sm" style="text-align: center">
-        <ul class="list-inline">
+    <div class="well well-sm">
+        <ul class="roll-list">
         % for my $player ( sort keys %$roll ) {
-            <li style="width: 15%;">
-                <div><big><%= $player %></big></div>
-                <div><img src="http://ddragon.leagueoflegends.com/cdn/5.12.1/img/champion/<%= $roll->{$player}{champion}{image} %>" class="img-rounded"></div>
-                <div><%= $roll->{$player}{champion}{name} %></div>
-                <div><span class="label label-default"><%= $roll->{$player}{role} %></span></div>
+            <li>
+                <span class="player"><%= $player %></span>
+                <img src="http://ddragon.leagueoflegends.com/cdn/5.12.1/img/champion/<%= $roll->{$player}{champion}{image} %>">
+                <span class="champion-name"><%= $roll->{$player}{champion}{name} %></span>
+                <span class="player-role"><%= $roll->{$player}{role} %></span>
             </li>
         % }
         </ul>

@@ -27,3 +27,29 @@ a:hover .non-role, a:focus .non-role {
     visibility: visible;
     text-decoration: underline;
 }
+
+.roll-list {
+    &:extend(.list-inline);
+    text-align: center;
+    > li {
+        &:extend(.list-inline > li);
+        padding-left: @padding-large-horizontal;
+        padding-right: @padding-large-horizontal;
+        > span {
+            display: block;
+        }
+        > .player {
+            &:extend(h4);
+        }
+        > .champion-name {
+        }
+        > .player-role {
+            &:extend(.label);
+            &:extend(.label-default);
+        }
+        > img {
+            &:extend(.img-rounded);
+        }
+    }
+}
+
