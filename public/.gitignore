@@ -3,6 +3,6 @@
 /*
 /*/
 !/.gitignore
-!/css/
-!/fonts/
-!/js/
+!/css/*.min.*
+!/fonts/*.min.*
+!/js/*.min.*

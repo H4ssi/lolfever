@@ -644,7 +644,6 @@ __DATA__
 <title>LoL Fever</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link href="<%= url_for '/css/bootstrap.min.css' %>" rel="stylesheet" media="screen">
-<link href="<%= url_for '/css/lolfever.css' %>" rel="stylesheet" media="screen">
 </head>
 <body>
 <div class="container">
