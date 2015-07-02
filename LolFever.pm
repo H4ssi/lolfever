@@ -117,6 +117,10 @@ sub pg_init() {
         $pg->db->query("alter table champion add image text not null default 'Unknown.png'");
         $pg->db->query("alter table champion alter image drop default");
     });
+    pg_setup($data, 10, sub {
+        $pg->db->query('create table global (id integer primary key check (id = 0), data jsonb)');
+        $pg->db->query("insert into global (id, data) values (0, '{}'::jsonb)");
+    });
 }
 
 sub store_champs( $champs, $cb ) {
