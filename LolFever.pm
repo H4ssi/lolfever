@@ -190,12 +190,30 @@ sub save_user( $user, $cb ) {
 }
 
 sub get_users( $cb ) {
-    return $pg->db->query('select * from summoner order by name', sub ($,$,$r) { $cb->(undef, $r->expand->hashes); });
+    $pg->db->query('select * from summoner order by name', sub ($,$,$r) { $cb->(undef, $r->expand->hashes); });
 }
 
 sub get_user( $name, $cb ) {
-    return $pg->db->query('select * from summoner where name = ?', $name, sub ($,$,$r) { $cb->(undef, $r->expand->hashes->first); });
+    $pg->db->query('select * from summoner where name = ?', $name, sub ($,$,$r) { $cb->(undef, $r->expand->hashes->first); });
 }
+
+sub get_global_data() {
+    return $pg->db->query('select data from global')->expand->hashes->first->{data};
+}
+
+sub save_global_data($data) {
+    $pg->db->query('update global set data = ?::jsonb', {json => $data}, sub(@) {});
+}
+
+my $global_data;
+helper global_data => sub ($self, $data = undef) {
+    if( defined $data ) {
+        $global_data = $data;
+        save_global_data($global_data);
+    }
+    return $global_data;
+};
+app->global_data(get_global_data());
 
 sub read_db( $file ) {
     open(my $f, '<', $file);
@@ -225,13 +243,15 @@ post("/championdb" => sub ($c) {
     $c->render_later;
     $c->delay(
         sub ($d) {
+            $c->ua->get("https://global.api.pvp.net/api/lol/static-data/euw/v1.2/realm?api_key=$lol_api_key" => $d->begin);
             $c->ua->get("https://euw.api.pvp.net/api/lol/euw/v1.2/champion?api_key=$lol_api_key" => $d->begin);
             $c->ua->get("https://global.api.pvp.net/api/lol/static-data/euw/v1.2/champion?dataById=true&champData=image&api_key=$lol_api_key" => $d->begin);
             $c->ua->get('http://www.lolking.net/champions' => $d->begin);
             $c->ua->get('http://www.lolking.net/guides' => $d->begin);
             $c->ua->get('http://www.lolpro.com' => $d->begin);
         },
-        sub ($d, $champions_tx, $static_tx, $champs_tx, $guides_tx, $roles_tx) {
+        sub ($d, $realm_tx, $champions_tx, $static_tx, $champs_tx, $guides_tx, $roles_tx) {
+            $c->global_data({ %{$realm_tx->res->json}{qw<cdn dd>}});
 
             my $champions = $champions_tx->res->json->{'champions'};
             my $static = $static_tx->res->json->{'data'};
@@ -703,7 +723,7 @@ __DATA__
         % for my $player ( sort keys %$roll ) {
             <li>
                 <span class="player"><%= $player %></span>
-                <img src="http://ddragon.leagueoflegends.com/cdn/5.12.1/img/champion/<%= $roll->{$player}{champion}{image} %>">
+                <img src="<%= global_data->{cdn} %>/<%= global_data->{dd} %>/img/champion/<%= $roll->{$player}{champion}{image} %>">
                 <span class="champion-name"><%= $roll->{$player}{champion}{name} %></span>
                 <span class="player-role"><%= $roll->{$player}{role} %></span>
             </li>
