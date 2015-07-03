@@ -196,7 +196,26 @@ sub get_users( $cb ) {
 sub get_user( $name, $cb ) {
     $pg->db->query('select * from summoner where name = ?', $name, sub ($,$,$r) { $cb->(undef, $r->expand->hashes->first); });
 }
-
+app->hook(around_action => sub ($next, $c, @) {
+    my $s = $c->session;
+    if ( exists $s->{logged_in} ) {
+        $c->render_later;
+        $c->delay(
+            sub ($d) {
+                get_user( $s->{logged_in}, $d->begin );
+            },
+            sub ($d, $user) {
+                $c->stash(logged_in => $user);
+                $next->();
+            });
+    } else {
+        $next->();
+    }
+});
+get('/logout' => sub ($c) {
+    $c->session(expires => 1);
+    $c->redirect_to('home');
+});
 sub get_global_data() {
     return $pg->db->query('select data from global')->expand->hashes->first->{data};
 }
@@ -440,6 +459,10 @@ get("/user/:name" => sub ($c) {
     my $name = $c->param('name');
     return $c->render( text => "No user" ) unless defined $name;
 
+    my $logged_in_user = $c->stash('logged_in');
+    my $logged_in;
+    $logged_in = $logged_in_user if $logged_in_user && $logged_in_user->{name} eq $name;
+
     $c->render_later;
     $c->delay(
         sub ($d) { get_user( $name, $d->begin ); },
@@ -452,7 +475,7 @@ get("/user/:name" => sub ($c) {
         sub($d, $user, $champs) {
             my $pw_change_required = !(defined $user->{'pwhash'});
 
-            $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => $champs, roles => [ sort @ROLES ], pw_change_required => $pw_change_required, mode => 'profile' );
+            $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => $champs, roles => [ sort @ROLES ], pw_required => !$logged_in, pw_change_required => $pw_change_required, mode => 'profile' );
         });
 })->name('user');
 
@@ -460,44 +483,60 @@ post "/user/:name" => sub ($c) {
     my $name = $c->param('name');
     return $c->render( text => "No user" ) unless defined $name;
 
+    my $logged_in_user = $c->stash('logged_in');
+    my $logged_in;
+    $logged_in = $logged_in_user if $logged_in_user && $logged_in_user->{name} eq $name;
+
     $c->render_later;
     $c->delay(
-        sub($d) { get_user($name, $d->begin); },
+        sub($d) { 
+            if( $logged_in ) {
+                $d->pass($logged_in);
+            } else {
+                get_user($name, $d->begin);
+            }
+        },
         sub($d, $user) {     
             return $c->render( text => "No such user: $name", name => $name, mode => 'profile' ) unless $user;
     
             return $c->render( text => "User deactivated: $name", name => $name, mode => 'profile' ) unless $user->{pw} || $user->{pwhash};
 
             my $pw = $c->param('current_pw');
-            my $hash;
-            my $pw_change_required = 0;
-            my $authenticated = 0;
+            my $new_pw_1 = $c->param('new_pw_1');
+            my $new_pw_2 = $c->param('new_pw_2');
 
-            if( $user->{pwhash} ) {
-                $hash = $user->{pwhash};
-            } else {
-                $hash = scrypt_hash($user->{pw}, random_bytes(32));
-                $pw_change_required = 1;
+            if ( !$logged_in || $pw || $new_pw_1 || $new_pw_2 ) {
+                my $hash;
+                my $pw_change_required = 0;
+                my $authenticated = 0;
+
+                if( $user->{pwhash} ) {
+                    $hash = $user->{pwhash};
+                } else {
+                    $hash = scrypt_hash($user->{pw}, random_bytes(32));
+                    $pw_change_required = 1;
+                }
+
+                if( $hash =~ / \A SCRYPT: /xms ) {
+                    $authenticated = scrypt_hash_verify( $pw, $hash );  
+                } else {
+                    $authenticated = $hash eq Digest->new('SHA-512')->add($legacy_sha_salt)->add($pw)->b64digest;
+                }
+
+                return $c->render( text => 'invalid pw', name => $name, mode => 'profile' ) unless $authenticated;
+
+                return $c->render( text => 'must change pw', name => $name, mode => 'profile' ) if $pw_change_required && !$new_pw_1;
+
+                if( $new_pw_1 ) {
+                    return $c->render( text => 'new pws did not match', name => $name, mode => 'profile' ) unless $new_pw_1 eq $new_pw_2;
+                    
+                    $user->{pwhash} = scrypt_hash($new_pw_1, random_bytes(32));
+                } elsif( $hash !~ / \A SCRYPT: /xms ) {
+                    $user->{pwhash} = scrypt_hash($pw, random_bytes(32));
+                }
+        
+                $c->session->{logged_in} = $user->{name};
             }
-
-            if( $hash =~ / \A SCRYPT: /xms ) {
-                $authenticated = scrypt_hash_verify( $pw, $hash );  
-            } else {
-                $authenticated = $hash eq Digest->new('SHA-512')->add($legacy_sha_salt)->add($pw)->b64digest;
-            }
-
-            return $c->render( text => 'invalid pw', name => $name, mode => 'profile' ) unless $authenticated;
-
-            return $c->render( text => 'must change pw', name => $name, mode => 'profile' ) if $pw_change_required && !$c->param('new_pw_1');
-
-            if( $c->param('new_pw_1') ) {
-                return $c->render( text => 'new pws did not match', name => $name, mode => 'profile' ) unless $c->param('new_pw_1') eq $c->param('new_pw_2');
-                
-                $user->{pwhash} = scrypt_hash($c->param('new_pw_1'), random_bytes(32));
-            } elsif( $hash !~ / \A SCRYPT: /xms ) {
-                $user->{pwhash} = scrypt_hash($pw, random_bytes(32));
-            }
-    
             $user->{roles} = { map { $_ => undef } (grep { $c->param("can:$_") } @ROLES) };
 
             $d->pass($user);
@@ -842,7 +881,10 @@ __DATA__
 
     <div class="form-group">
         <label for="current_pw">
-            Current password <strong>(required)</strong>
+            Current password 
+            % if( $pw_required ) {
+                <strong>(required)</strong>
+            % }
         </label>
         %= input_tag 'current_pw' => ( type => 'password', placeholder => 'Password', id => 'current_pw', class => 'form-control' )
     </div>
