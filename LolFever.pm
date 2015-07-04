@@ -124,6 +124,10 @@ sub pg_init() {
     pg_setup($data, 11, sub {
         $pg->db->query("alter table summoner add admin boolean not null default 'f'");
     });
+    pg_setup($data, 12, sub {
+        $pg->db->query("alter table summoner drop pw");
+        $pg->db->query("alter table summoner add pw_change_required boolean not null default 'f'");
+    });
 }
 
 sub store_champs( $champs, $cb ) {
@@ -187,8 +191,8 @@ sub remove_whitelist( $champ_key, $role, $cb ) {
 }
 
 sub save_user( $user, $cb ) {
-    $pg->db->query("update summoner set (pw, pwhash, roles, champions) = (?, ?, ?::jsonb, ?::jsonb) where name = ?",
-        $user->{pw}, $user->{pwhash}, {json => $user->{roles}}, {json => $user->{champions}}, $user->{name},
+    $pg->db->query("update summoner set (pwhash, pw_change_required, roles, champions) = (?, ?, ?::jsonb, ?::jsonb) where name = ?",
+        $user->{pwhash}, $user->{pw_change_required} ? 't' : 'f', {json => $user->{roles}}, {json => $user->{champions}}, $user->{name},
         sub (@) { $cb->(undef); });
 }
 
@@ -476,9 +480,7 @@ get("/user/:name" => sub ($c) {
             get_champs($d->begin);
         },
         sub($d, $user, $champs) {
-            my $pw_change_required = !(defined $user->{'pwhash'});
-
-            $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => $champs, roles => [ sort @ROLES ], pw_required => !$logged_in, pw_change_required => $pw_change_required, mode => 'profile' );
+            $c->render($c->param('edit') ? 'user_edit' : 'user', name => $user->{name}, user => $user, champs => $champs, roles => [ sort @ROLES ], pw_required => !$logged_in, pw_change_required => $user->{pw_change_required}, mode => 'profile' );
         });
 })->name('user');
 
@@ -504,25 +506,17 @@ post "/user/:name" => sub ($c) {
         sub($d, $user) {     
             return $c->render( text => "No such user: $name", name => $name, mode => 'profile' ) unless $user;
     
-            return $c->render( text => "User deactivated: $name", name => $name, mode => 'profile' ) unless $user->{pw} || $user->{pwhash};
-
             my $pw = $c->param('current_pw') // '';
             my $new_pw_1 = $c->param('new_pw_1') // '';
             my $new_pw_2 = $c->param('new_pw_2') // '';
 
             if ( !$logged_in || $pw ne '' || $new_pw_1 ne '' || $new_pw_2 ne '' ) {
-                my $hash;
-                my $pw_change_required = 0;
+                my $hash = $user->{pwhash};
                 my $authenticated = 0;
 
-                if( $user->{pwhash} ) {
-                    $hash = $user->{pwhash};
-                } else {
-                    $hash = scrypt_hash($user->{pw}, random_bytes(32));
-                    $pw_change_required = 1;
-                }
-
                 if( $pw ne '' ) {
+                    return $c->render( text => "User deactivated: $name", name => $name, mode => 'profile' ) unless $hash;
+                    
                     if( $hash =~ / \A SCRYPT: /xms ) {
                         $authenticated = 'pw' if scrypt_hash_verify( $pw, $hash );  
                     } else {
@@ -533,13 +527,14 @@ post "/user/:name" => sub ($c) {
                 } 
 
                 return $c->render( text => 'invalid pw', name => $name, mode => 'profile' ) unless $authenticated;
-
-                return $c->render( text => 'must change pw', name => $name, mode => 'profile' ) if $pw_change_required && !$new_pw_1;
+                
+                return $c->render( text => 'must change pw', name => $name, mode => 'profile' ) if $user->{pw_change_required} && !$new_pw_1;
 
                 if( $new_pw_1 ne '' ) {
                     return $c->render( text => 'new pws did not match', name => $name, mode => 'profile' ) unless $new_pw_1 eq $new_pw_2;
                     
                     $user->{pwhash} = scrypt_hash($new_pw_1, random_bytes(32));
+                    $user->{pw_change_required} = $authenticated eq 'admin';
                 } elsif( $hash !~ / \A SCRYPT: /xms ) {
                     $user->{pwhash} = scrypt_hash($pw, random_bytes(32));
                 }
