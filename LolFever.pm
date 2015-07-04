@@ -121,6 +121,9 @@ sub pg_init() {
         $pg->db->query('create table global (id integer primary key check (id = 0), data jsonb)');
         $pg->db->query("insert into global (id, data) values (0, '{}'::jsonb)");
     });
+    pg_setup($data, 11, sub {
+        $pg->db->query("alter table summoner add admin boolean not null default 'f'");
+    });
 }
 
 sub store_champs( $champs, $cb ) {
@@ -486,6 +489,8 @@ post "/user/:name" => sub ($c) {
     my $logged_in_user = $c->stash('logged_in');
     my $logged_in;
     $logged_in = $logged_in_user if $logged_in_user && $logged_in_user->{name} eq $name;
+    my $logged_in_admin;
+    $logged_in_admin = $logged_in_user if $logged_in_user && $logged_in_user->{admin};
 
     $c->render_later;
     $c->delay(
@@ -501,11 +506,11 @@ post "/user/:name" => sub ($c) {
     
             return $c->render( text => "User deactivated: $name", name => $name, mode => 'profile' ) unless $user->{pw} || $user->{pwhash};
 
-            my $pw = $c->param('current_pw');
-            my $new_pw_1 = $c->param('new_pw_1');
-            my $new_pw_2 = $c->param('new_pw_2');
+            my $pw = $c->param('current_pw') // '';
+            my $new_pw_1 = $c->param('new_pw_1') // '';
+            my $new_pw_2 = $c->param('new_pw_2') // '';
 
-            if ( !$logged_in || $pw || $new_pw_1 || $new_pw_2 ) {
+            if ( !$logged_in || $pw ne '' || $new_pw_1 ne '' || $new_pw_2 ne '' ) {
                 my $hash;
                 my $pw_change_required = 0;
                 my $authenticated = 0;
@@ -517,17 +522,21 @@ post "/user/:name" => sub ($c) {
                     $pw_change_required = 1;
                 }
 
-                if( $hash =~ / \A SCRYPT: /xms ) {
-                    $authenticated = scrypt_hash_verify( $pw, $hash );  
-                } else {
-                    $authenticated = $hash eq Digest->new('SHA-512')->add($legacy_sha_salt)->add($pw)->b64digest;
-                }
+                if( $pw ne '' ) {
+                    if( $hash =~ / \A SCRYPT: /xms ) {
+                        $authenticated = 'pw' if scrypt_hash_verify( $pw, $hash );  
+                    } else {
+                        $authenticated = 'pw' if $hash eq Digest->new('SHA-512')->add($legacy_sha_salt)->add($pw)->b64digest;
+                    }
+                } elsif( $logged_in_admin && $logged_in_admin->{name} ne $user->{name} ) {
+                    $authenticated = 'admin';
+                } 
 
                 return $c->render( text => 'invalid pw', name => $name, mode => 'profile' ) unless $authenticated;
 
                 return $c->render( text => 'must change pw', name => $name, mode => 'profile' ) if $pw_change_required && !$new_pw_1;
 
-                if( $new_pw_1 ) {
+                if( $new_pw_1 ne '' ) {
                     return $c->render( text => 'new pws did not match', name => $name, mode => 'profile' ) unless $new_pw_1 eq $new_pw_2;
                     
                     $user->{pwhash} = scrypt_hash($new_pw_1, random_bytes(32));
@@ -535,7 +544,7 @@ post "/user/:name" => sub ($c) {
                     $user->{pwhash} = scrypt_hash($pw, random_bytes(32));
                 }
         
-                $c->session->{logged_in} = $user->{name};
+                $c->session->{logged_in} = $user->{name} unless $authenticated eq 'admin';
             }
             $user->{roles} = { map { $_ => undef } (grep { $c->param("can:$_") } @ROLES) };
 
