@@ -876,17 +876,18 @@ __DATA__
     % }
 </div>
 
-<div class="form-group">
+<div class="form-group owned-champions">
     <label>Owned champions</label>
-
-    % for my $champ (@$champs) {
-        <div class="checkbox">    
-            <label>
-                %= input_tag "owns:$champ->{key}", type => 'checkbox', value => 1, exists $user->{champions}{$champ->{id}} ? ( checked => 'checked' ) : ()
-                <%= $champ->{name} %>
+    
+    <div class="btn-group" data-toggle="buttons">
+        % for my $champ (@$champs) {
+            <label class="btn btn-default <%= exists $user->{champions}{$champ->{id}} ? "active" : ""%>">
+                %= input_tag "owns:$champ->{key}", type => 'checkbox', value => 1, autocomplete => 'off', exists $user->{champions}{$champ->{id}} ? ( checked => 'checked' ) : ()
+                <img src="<%= global_data->{cdn} %>/<%= global_data->{dd} %>/img/champion/<%= $champ->{image} %>" class="img-rounded">
+                <div><%= $champ->{name} %></div>
             </label>
-        </div>
-    % }
+        % }
+    </div>
 </div>
 
 <div class="form-group">
