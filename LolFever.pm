@@ -56,6 +56,10 @@ app->hook(before_dispatch => sub ($c) {
   push @{ $c->req->url->base->path->trailing_slash(1) }, @base;
 });
 
+app->sessions->cookie_name('lolfever');
+app->sessions->cookie_path(Mojo::Path->new($base)->leading_slash(1)->trailing_slash(1)->to_string);
+app->sessions->secure(app->mode ne 'development');
+
 my %PARSE = ( mid => 'mid', 
               top => 'top',
               support => 'sup',
