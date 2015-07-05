@@ -842,16 +842,19 @@ __DATA__
 <ul class="list-inline">
 % for my $role (@$roles) {
     % if( exists $user->{roles}{$role} ) {
-        <li><%= $role %></li>
+        <li><span class="label label-default"><%= $role %></span></li>
     % }
 % }
 </ul>
 
 <h3>Owned champions</h3>
-<ul class="list-inline">
+<ul class="owned-champions">
 % for my $champ (@$champs) {
     % if( exists $user->{champions}{$champ->{id}} ) {
-        <li><%= $champ->{name} %></li>
+        <li>
+            <img src="<%= global_data->{cdn} %>/<%= global_data->{dd} %>/img/champion/<%= $champ->{image} %>">
+            <div><%= $champ->{name} %></div>
+        </li>
     % }
 % }
 </ul>

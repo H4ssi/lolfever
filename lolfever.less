@@ -58,3 +58,16 @@ a:hover .non-role, a:focus .non-role {
         &:extend(.btn-info.active all);
     }
 }
+
+ul.owned-champions {
+    &:extend(.list-inline);
+    > li {
+        &:extend(.list-inline > li);
+        padding-bottom: @padding-large-vertical;
+        text-align: center;
+
+        > img {
+            &:extend(.img-rounded);
+        }
+    }
+}
