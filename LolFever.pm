@@ -375,6 +375,8 @@ post("/championdb" => sub ($c) {
 })->name('championdb');
 
 get ( '/migrate_lists' => sub ($c) {
+    return $c->redirect_to('championdb') unless $c->stash('logged_in') && $c->stash('logged_in')->{admin};
+
     my $b = read_db('blacklist.db');
     for my $champ (keys %$b) {
         $champ = "monkeyking" if $champ eq "wukong";
@@ -398,6 +400,8 @@ get ( '/migrate_lists' => sub ($c) {
 });
 
 get ( '/migrate_users' => sub ($c) {
+    return $c->redirect_to('championdb') unless $c->stash('logged_in') && $c->stash('logged_in')->{admin};
+
     $c->render_later;
     $c->delay(
         sub ($d) {
