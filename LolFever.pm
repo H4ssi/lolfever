@@ -239,7 +239,6 @@ helper global_data => sub ($self, $data = undef) {
     }
     return $global_data;
 };
-app->global_data(get_global_data());
 
 sub read_db( $file ) {
     open(my $f, '<', $file);
@@ -680,7 +679,9 @@ post("/troll" => sub ($c) {
     return roll($c, 'trolling');
 })->name('trollroll');
 
+
 pg_init();
+app->global_data(get_global_data());
 app->start;
 
 __DATA__
