@@ -863,21 +863,23 @@ __DATA__
 
 %= form_for url_for() => (method => 'POST') => begin
 
-<div class="form-group">
-    <label>Possible roles</label>
+<div class="form-group preferred-roles">
+    <label><h4>Possible roles</h4></label>
+    <br>
 
-    % for my $role (@$roles) {
-        <div class="checkbox">    
-            <label>
-                %= input_tag "can:$role", type => 'checkbox', value => 1, exists $user->{roles}{$role} ? ( checked => 'checked' ) : ()
+    <div class="btn-group" data-toggle="buttons">
+        % for my $role (@$roles) {
+            <label  class="btn btn-default <%= exists $user->{roles}{$role} ? "active" : ""%>">
+                %= input_tag "can:$role", type => 'checkbox', value => 1, autocomplete => 'off', exists $user->{roles}{$role} ? ( checked => 'checked' ) : ()
                 <%= $role %>
             </label>
-        </div>
-    % }
+        % }
+    </div>
 </div>
 
 <div class="form-group owned-champions">
-    <label>Owned champions</label>
+    <label><h4>Owned champions</h4></label>
+    <br>
     
     <div class="btn-group" data-toggle="buttons">
         % for my $champ (@$champs) {
@@ -891,7 +893,7 @@ __DATA__
 </div>
 
 <div class="form-group">
-    <label>Authentication</label>
+    <label><h4>Authentication</h4></label>
 
     <div class="form-group">
         <label for="current_pw">
