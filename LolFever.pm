@@ -132,6 +132,10 @@ sub pg_init() {
         $pg->db->query("alter table summoner drop pw");
         $pg->db->query("alter table summoner add pw_change_required boolean not null default 'f'");
     });
+    pg_setup($data, 13, sub {
+        $pg->db->query("create function notify_global_modified_trigger() returns trigger as \$\$ begin notify lolfever_global_modified; return null; end; \$\$ language plpgsql");
+        $pg->db->query("create trigger global_modified_trigger after update on global for each row when (old.data != new.data) execute procedure notify_global_modified_trigger()");
+    });
 }
 
 sub store_champs( $champs, $cb ) {
