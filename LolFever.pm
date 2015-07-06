@@ -231,8 +231,8 @@ get('/logout' => sub ($c) {
     $c->session(expires => 1);
     $c->redirect_to('home');
 });
-sub get_global_data() {
-    return $pg->db->query('select data from global')->expand->hashes->first->{data};
+sub get_global_data( $cb ) {
+    return $pg->db->query('select data from global', sub ($,$,$r) { $cb->(undef, $r->expand->hashes->first->{data}); });
 }
 
 sub save_global_data($data) {
@@ -240,6 +240,11 @@ sub save_global_data($data) {
 }
 
 my $global_data;
+sub load_global_data() {
+    Mojo::IOLoop->delay(
+        sub($d) { get_global_data($d->begin); },
+        sub($d, $data) { $global_data = $data; });
+}
 helper global_data => sub ($self, $data = undef) {
     if( defined $data ) {
         $global_data = $data;
@@ -693,7 +698,10 @@ post("/troll" => sub ($c) {
 
 
 pg_init();
-app->global_data(get_global_data());
+Mojo::IOLoop->next_tick(sub { 
+    $pg->pubsub->listen(lolfever_global_modified => sub (@) { load_global_data(); });
+    load_global_data(); 
+});
 app->start;
 
 __DATA__
