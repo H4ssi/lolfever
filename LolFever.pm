@@ -253,28 +253,6 @@ helper global_data => sub ($self, $data = undef) {
     return $global_data;
 };
 
-sub read_db( $file ) {
-    open(my $f, '<', $file);
-
-    my %data;
-
-    while(my $l = <$f>) {
-        chomp $l;
-
-        next if $l =~ /\A \s* \z/xms;
-
-        my ($key,$val) = split /:/xms, $l, 2;
-
-        $data{$key} = {} unless defined $data{$key};
-
-        $data{$key}->{$val} = 1;
-    }
-
-    close $f;
-
-    return \%data;
-}
-
 post("/championdb" => sub ($c) {
     my @errors;
 
@@ -382,64 +360,6 @@ post("/championdb" => sub ($c) {
         }
     );
 })->name('championdb');
-
-get ( '/migrate_lists' => sub ($c) {
-    return $c->redirect_to('championdb') unless $c->stash('logged_in') && $c->stash('logged_in')->{admin};
-
-    my $b = read_db('blacklist.db');
-    for my $champ (keys %$b) {
-        $champ = "monkeyking" if $champ eq "wukong";
-        for my $role (keys $b->{$champ}->%*) {
-            my $d = Mojo::IOLoop->delay;
-            add_blacklist( $champ, $role, $d->begin );
-            $d->wait;
-        }
-    }
-    my $w = read_db('whitelist.db');
-    for my $champ (keys %$w) {
-        $champ = "monkeyking" if $champ eq "wukong";
-        for my $role (keys $w->{$champ}->%*) {
-            my $d = Mojo::IOLoop->delay;
-            add_whitelist( $champ, $role, $d->begin );
-            $d->wait;
-        }
-    }
-
-    $c->redirect_to('championdb');
-});
-
-get ( '/migrate_users' => sub ($c) {
-    return $c->redirect_to('championdb') unless $c->stash('logged_in') && $c->stash('logged_in')->{admin};
-
-    $c->render_later;
-    $c->delay(
-        sub ($d) {
-            get_champs($d->begin);
-        },
-        sub ($d, $champs) {
-            my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
-
-            my $ids = { map { $_->{key} => $_->{id} } @$champs };
-
-            for my $user (@users) {
-                my $u = read_db("$user.db");
-
-                $u->{pw} = (keys $u->{pw}->%*)[0];
-                $u->{pwhash} = (keys $u->{pwhash}->%*)[0] if exists $u->{pwhash};
-                $u->{champions} = { map { $ids->{$_ eq "wukong" ? "monkeyking" : $_} => undef } (keys $u->{owns}->%*) };
-                $u->{roles} = { map { $_ => undef } (keys $u->{can}->%*) };
-
-                $pg->db->query("insert into summoner (name, pw, pwhash, champions, roles) values (?, ?, ?, ?::jsonb, ?::jsonb)",
-                    $user,
-                    $u->{pw},
-                    $u->{pwhash},
-                    {json => $u->{champions}},
-                    {json => $u->{roles}});
-            }
-
-            $c->redirect_to('home');
-        });
-});
 
 get( "/champion/:champion/:role/blacklist" => sub ($c) {
     $c->render_later;
