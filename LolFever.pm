@@ -733,14 +733,14 @@ __DATA__
 
 <div class="form-group">
     <label>Roles</label>
-    % for my $role (@$roles) {
-        <div class="checkbox">
-            <label>
-                %= input_tag "needed_roles", type => 'checkbox', value => $role, $role ~~ @$needed_roles ? ( checked => 'checked' ) : ()
+    <div class="btn-group btn-group-justified" data-toggle="buttons">
+        % for my $role (@$roles) {
+            <label class="btn btn-default <%= $role ~~ @$needed_roles ? "active" : "" %>">
+                %= input_tag "needed_roles", type => 'checkbox', value => $role, autocomplete => 'off', $role ~~ @$needed_roles ? ( checked => 'checked' ) : ()
                 %= $role
             </label>
-        </div>
-    % }
+        % }
+    </div>
 </div>
 
 <div class="form-group">
