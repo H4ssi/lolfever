@@ -496,7 +496,7 @@ sub roll_form($c) {
     $c->delay(
         sub ($d) { get_users($d->begin); get_champs($d->begin); },
         sub ($d, $users, $champs) {
-            $c->render( 'roll', users => $users, roles => [ sort @ROLES ], champs => $champs, players => undef, woroles => undef, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
+            $c->render( 'roll', users => $users, roles => [ sort @ROLES ], champs => $champs, players => undef, needed_roles => \@ROLES, wochampions => undef, roll => undef, fails => undef, mode => 'roll' );
         });
 };
 
@@ -557,7 +557,8 @@ sub trollify( $db ) {
 
 sub roll( $c, $trolling = '' ) {
     my @players = grep { $_ } $c->every_param('players')->@*;
-    my @woroles = grep { $_ } $c->every_param('woroles')->@*;
+    my @needed_roles = grep { $_ } $c->every_param('needed_roles')->@*;
+    my @woroles = grep { not $_ ~~ @needed_roles } @ROLES;
     my @wochampionkeys = grep { $_ } $c->every_param('wochampions')->@*;
 
     $c->render_later;
@@ -599,7 +600,7 @@ sub roll( $c, $trolling = '' ) {
 
             my @users = map { /(.*)\.db\z/xms; $1 } (grep { !/champions|roll|free|blacklist|whitelist/xms } (glob '*.db'));
 
-            $c->render( 'roll', users => $users, roles => [ sort @ROLES ], champs => $champs, players => \@players, woroles => \@woroles, wochampions => \@wochampionkeys, 
+            $c->render( 'roll', users => $users, roles => [ sort @ROLES ], champs => $champs, players => \@players, needed_roles => \@needed_roles, wochampions => \@wochampionkeys, 
                          roll => (scalar keys %roll ? \%roll : undef), fails => (scalar @fails ? $c->dumper(\@fails) : undef), mode => 'roll' );
         });
 }
@@ -731,11 +732,11 @@ __DATA__
 </div>
 
 <div class="form-group">
-    <label>Excluded roles</label>
+    <label>Roles</label>
     % for my $role (@$roles) {
         <div class="checkbox">
             <label>
-                %= input_tag "woroles", type => 'checkbox', value => $role, $role ~~ @$woroles ? ( checked => 'checked' ) : ()
+                %= input_tag "needed_roles", type => 'checkbox', value => $role, $role ~~ @$needed_roles ? ( checked => 'checked' ) : ()
                 %= $role
             </label>
         </div>
