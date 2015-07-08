@@ -735,8 +735,9 @@ __DATA__
     <label>Roles</label>
     <div class="btn-group btn-group-justified" data-toggle="buttons">
         % for my $role (@$roles) {
-            <label class="btn btn-default <%= $role ~~ @$needed_roles ? "active" : "" %>">
-                %= input_tag "needed_roles", type => 'checkbox', value => $role, autocomplete => 'off', $role ~~ @$needed_roles ? ( checked => 'checked' ) : ()
+            % my $is_needed = $role ~~ @$needed_roles;
+            <label class="btn btn-default <%= $is_needed ? "active" : "" %>">
+                %= input_tag "needed_roles", type => 'checkbox', value => $role, autocomplete => 'off', $is_needed ? ( checked => 'checked' ) : ()
                 %= $role
             </label>
         % }
@@ -805,8 +806,9 @@ __DATA__
 
     <div class="btn-group" data-toggle="buttons">
         % for my $role (@$roles) {
-            <label  class="btn btn-default <%= exists $user->{roles}{$role} ? "active" : ""%>">
-                %= input_tag "can:$role", type => 'checkbox', value => 1, autocomplete => 'off', exists $user->{roles}{$role} ? ( checked => 'checked' ) : ()
+            % my $prefers_role = exists $user->{roles}{$role};
+            <label  class="btn btn-default <%= $prefers_role ? "active" : ""%>">
+                %= input_tag "can:$role", type => 'checkbox', value => 1, autocomplete => 'off', $prefers_role ? ( checked => 'checked' ) : ()
                 <%= $role %>
             </label>
         % }
@@ -819,8 +821,9 @@ __DATA__
     
     <div class="btn-group" data-toggle="buttons">
         % for my $champ (@$champs) {
-            <label class="btn btn-default <%= exists $user->{champions}{$champ->{id}} ? "active" : ""%>">
-                %= input_tag "owns:$champ->{key}", type => 'checkbox', value => 1, autocomplete => 'off', exists $user->{champions}{$champ->{id}} ? ( checked => 'checked' ) : ()
+            % my $owns_champion = exists $user->{champions}{$champ->{id}};
+            <label class="btn btn-default <%= $owns_champion ? "active" : ""%>">
+                %= input_tag "owns:$champ->{key}", type => 'checkbox', value => 1, autocomplete => 'off', $owns_champion ? ( checked => 'checked' ) : ()
                 <img src="<%= global_data->{cdn} %>/<%= global_data->{dd} %>/img/champion/<%= $champ->{image} %>" class="img-rounded">
                 <div><%= $champ->{name} %></div>
             </label>
