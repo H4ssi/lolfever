@@ -144,19 +144,12 @@ sub store_champs( $champs, $cb ) {
 
     my $handler = sub ($c) {
         return sub ($d, @) {
-                my $cb = $d->begin;
-                $h->query('update champion set (key, name, free, roles, image) = (?, ?, ?, ?::jsonb, ?) where id = ? returning id',
-                    $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} }, $c->{image}, $c->{id},
-                    sub ($, $, $r) {
-                        if ($r->arrays->size) {
-                            $cb->();
-                        } else {
-                            $h->query('insert into champion (id, key, name, free, roles, image) values (?, ?, ?, ?, ?::jsonb, ?)',
-                                $c->{id}, $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} }, $c->{image},
-                                $cb);
-                        }
-                    });
-        }
+            my $cb = $d->begin;
+            $h->query('insert into champion (id, key, name, free, roles, image) values (?, ?, ?, ?, ?::jsonb, ?) ' .
+                'on conflict (id) do update set (key, name, free, roles, image) = (excluded.key, excluded.name, excluded.free, excluded.roles, excluded.image)',
+                $c->{id}, $c->{key}, $c->{name}, $c->{free} ? 't' : 'f', { json => $c->{roles} }, $c->{image},
+                $cb); # todo error
+        };
     };
 
     Mojo::IOLoop->delay(
