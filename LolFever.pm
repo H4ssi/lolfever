@@ -309,7 +309,7 @@ post("/championdb" => sub ($c) {
             }
 
             for my $champ ( $guides_tx->res->dom->find('#guides-champion-list > .big-champion-icon')->@* ) {
-                my ($key) = $champ->attr('href') =~ /champion=([a-z]*)/xms;
+                my ($key) = $champ->attr('href') =~ /champion\/([a-z]*)/xms;
                 my @roles = map { $champ->attr("data-meta$_") } @{['', 1..5]};
          
                 unless( exists $ids->{$key} ) {
